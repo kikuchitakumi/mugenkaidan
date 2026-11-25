@@ -21,10 +21,13 @@
   .btn.on{transform:scale(.95);filter:brightness(1.35);box-shadow:0 2px 12px var(--glow),inset 0 1px 0 #fff8}
   #ctrl{left:max(16px,env(safe-area-inset-left));--glow:#8b4fe666;background:linear-gradient(160deg,#a56cf5,#5b2ab0)}
   #space{right:max(16px,env(safe-area-inset-right));--glow:#2aa0f066;background:linear-gradient(160deg,#4fc0ff,#1766c2)}
+  #mute{position:fixed;top:max(10px,env(safe-area-inset-top));right:max(10px,env(safe-area-inset-right));width:44px;height:44px;
+    border-radius:50%;border:1.5px solid #ffffff44;background:#ffffff18;color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;touch-action:none}
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
+<div id="mute">🔊</div>
 <div class="btn" id="ctrl">Ctrl<small>方向転換して1段</small></div>
 <div class="btn" id="space">Space<small>そのまま1段</small></div>
 <script>
@@ -56,16 +59,46 @@ function stairX(k){let x=0;for(let i=0;i<k;i++)x+=dirs[i];return x}
 function burst(x,y,col,cnt,sp){
   for(let i=0;i<cnt;i++){const a=Math.random()*6.283,s=Math.random()*sp;
     parts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-sp*.4,life:1,col})}}
-function fail(r){state='over';reason=r;lockUntil=performance.now()+450;shake=1;fv=-120;
+function fail(r){state='over';reason=r;sfxFail();lockUntil=performance.now()+450;shake=1;fv=-120;
   burst(vx,vy,'#ff6b6b',26,200);
   if(n>best){best=n;try{localStorage.setItem('mugen_best',best)}catch(e){}}}
 
+// 効果音(WebAudioで合成。音源ファイル不要)
+let ac=null,muted=false;
+try{muted=localStorage.getItem('mugen_mute')==='1'}catch(e){}
+const muteEl=document.getElementById('mute');
+muteEl.textContent=muted?'🔇':'🔊';
+muteEl.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();muted=!muted;
+  muteEl.textContent=muted?'🔇':'🔊';try{localStorage.setItem('mugen_mute',muted?'1':'0')}catch(_){}
+  if(!muted)tone(660,.08,'triangle',.15)});
+function audioInit(){
+  if(!ac){const A=window.AudioContext||window.webkitAudioContext;if(A)ac=new A()}
+  if(ac&&ac.state==='suspended')ac.resume();
+}
+function tone(f,d,type,vol,f2,delay){
+  if(muted||!ac)return;
+  const t=ac.currentTime+(delay||0),o=ac.createOscillator(),gn=ac.createGain();
+  o.type=type;o.frequency.setValueAtTime(f,t);
+  if(f2)o.frequency.exponentialRampToValueAtTime(f2,t+d);
+  gn.gain.setValueAtTime(0,t);gn.gain.linearRampToValueAtTime(vol,t+.008);
+  gn.gain.exponentialRampToValueAtTime(.001,t+d);
+  o.connect(gn).connect(ac.destination);o.start(t);o.stop(t+d+.02);
+}
+const PENT=[0,2,4,7,9];
+function sfxStep(k){
+  const semi=PENT[k%5]+(k%10>=5?12:0);
+  tone(440*Math.pow(2,semi/12),.11,'triangle',.18);
+  if(k%10===0){[0,4,7,12].forEach((s,i)=>tone(660*Math.pow(2,s/12),.25,'sine',.13,0,.07*i))}
+}
+function sfxFail(){tone(330,.45,'sawtooth',.12,70);tone(165,.45,'square',.07,45)}
+
 function act(turn){
+  audioInit();
   const now=performance.now();
   if(state==='over'){if(now>lockUntil)reset();return}
   if(turn)face=-face;
   if(dirs[n]!==face){fail('階段のない方向です');return}
-  n++;state='play';hop=1;
+  n++;state='play';hop=1;sfxStep(n);
   burst(stairX(n)*SW,-n*SH,n%10===0?'#ffd24a':'#9fb0ff',n%10===0?22:9,n%10===0?170:90);
   while(dirs.length<n+60)dirs.push(Math.random()<.5?1:-1);
   limit=limitFor(n);timer=limit;
