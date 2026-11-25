@@ -249,6 +249,53 @@ function loop(t){
 
 function rr(x,y,w,h,r){g.beginPath();g.roundRect(x,y,w,h,r)}
 
+function tri(x1,y1,x2,y2,x3,y3){g.beginPath();g.moveTo(x1,y1);g.lineTo(x2,y2);g.lineTo(x3,y3);g.closePath();g.fill()}
+function drawCat(f,over){
+  const t=performance.now()/1000;
+  g.lineCap='round';g.lineJoin='round';
+  // しっぽ(ぱたぱた)
+  g.strokeStyle='#ff9a3c';g.lineWidth=5;
+  const wag=Math.sin(t*6)*3;
+  g.beginPath();g.moveTo(-f*9,-6);g.quadraticCurveTo(-f*22,-6+wag,-f*19,-22+wag);g.stroke();
+  g.strokeStyle='#fff3e0';g.lineWidth=2.4;
+  g.beginPath();g.moveTo(-f*19,-18+wag);g.lineTo(-f*19,-22+wag);g.stroke();
+  // 体
+  let gr=g.createLinearGradient(0,-18,0,0);gr.addColorStop(0,'#ffbd6e');gr.addColorStop(1,'#ff9138');
+  g.fillStyle=gr;g.beginPath();g.ellipse(0,-8,12,9,0,0,7);g.fill();
+  g.fillStyle='#fff3e0';g.beginPath();g.ellipse(0,-5,6,5,0,0,7);g.fill();      // おなか
+  g.beginPath();g.ellipse(-6,-1,4.5,3,0,0,7);g.fill();g.beginPath();g.ellipse(6,-1,4.5,3,0,0,7);g.fill(); // あし
+  // 耳
+  g.fillStyle='#ff9a3c';tri(-13,-22,-11,-36,-3,-29);tri(13,-22,11,-36,3,-29);
+  g.fillStyle='#ffb3c1';tri(-11,-24,-10.3,-32,-5,-28);tri(11,-24,10.3,-32,5,-28);
+  // 頭
+  gr=g.createLinearGradient(0,-31,0,-9);gr.addColorStop(0,'#ffc680');gr.addColorStop(1,'#ff9a3c');
+  g.fillStyle=gr;g.beginPath();g.ellipse(0,-20,14,11.5,0,0,7);g.fill();
+  // おでこの模様
+  g.strokeStyle='#e0731c';g.lineWidth=1.8;
+  g.beginPath();g.moveTo(0,-31);g.lineTo(0,-27);g.moveTo(-4,-30.5);g.lineTo(-3.4,-27.5);g.moveTo(4,-30.5);g.lineTo(3.4,-27.5);g.stroke();
+  // ほっぺ
+  g.fillStyle='#ff7f8a66';g.beginPath();g.arc(-9+f*2,-15.5,3,0,7);g.fill();g.beginPath();g.arc(9+f*2,-15.5,3,0,7);g.fill();
+  // 目(進行方向を見る)
+  const ex=f*2.5;
+  if(over){
+    g.strokeStyle='#3a2415';g.lineWidth=1.8;
+    [-5.5,5.5].forEach(x=>{g.beginPath();g.moveTo(x+ex-2,-23);g.lineTo(x+ex+2,-19);g.moveTo(x+ex+2,-23);g.lineTo(x+ex-2,-19);g.stroke()});
+  }else{
+    g.fillStyle='#3a2415';
+    [-5.5,5.5].forEach(x=>{g.beginPath();g.ellipse(x+ex,-21,2.6,3.2,0,0,7);g.fill()});
+    g.fillStyle='#fff';
+    [-5.5,5.5].forEach(x=>{g.beginPath();g.arc(x+ex+.9,-22.2,1,0,7);g.fill()});
+  }
+  // 鼻と口
+  g.fillStyle='#ff6f8a';tri(ex-1.8,-17,ex+1.8,-17,ex,-15);
+  g.strokeStyle='#3a2415';g.lineWidth=1.1;
+  g.beginPath();g.arc(ex-1.6,-14.4,1.7,0,Math.PI);g.arc(ex+1.6,-14.4,1.7,0,Math.PI);g.stroke();
+  // ひげ
+  g.strokeStyle='#ffffffcc';g.lineWidth=1;
+  [[-1,-1.5],[-1,1.5]].forEach(([d,dy])=>{g.beginPath();g.moveTo(-10+ex,-16+dy*.4);g.lineTo(-18+ex,-16+dy*2.2);g.stroke();
+    g.beginPath();g.moveTo(10+ex,-16+dy*.4);g.lineTo(18+ex,-16+dy*2.2);g.stroke()});
+}
+
 function draw(){
   // 背景
   const bg=g.createLinearGradient(0,0,0,H);
@@ -297,11 +344,7 @@ function draw(){
   if(!over){g.fillStyle='#00000066';g.beginPath();g.ellipse(ox+vx,oy+vy+SH-8,14-jump*.3,4,0,0,7);g.fill()}
   const sq=hop>0?1+.12*Math.sin(Math.PI*hop):1;
   g.save();g.translate(x,y);g.scale(1/sq,sq);
-  const pg=g.createRadialGradient(-4,-18,2,0,-12,14);
-  pg.addColorStop(0,over?'#ffb0b0':'#ffffff');pg.addColorStop(1,over?'#d23a3a':'#9fb4ff');
-  g.fillStyle=pg;g.beginPath();g.arc(0,-12,12,0,7);g.fill();
-  g.fillStyle='#1a1d3a';g.beginPath();g.arc(face*5,-14,3,0,7);g.fill();
-  g.fillStyle='#fff';g.beginPath();g.arc(face*5.8,-15,1,0,7);g.fill();
+  drawCat(face,over);
   g.restore();
   // 向きの矢印
   if(!over){
