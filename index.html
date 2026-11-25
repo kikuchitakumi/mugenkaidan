@@ -111,6 +111,7 @@ const sfxCtrl=()=>tone(780,.09,'triangle',.2);           // Ctrl: 高めの「�
 
 // ---------- BGM(階数で切り替え) ----------
 const BGM=['1-199.mp3','200-399.mp3','400-inf.mp3'];
+const BGM_VOL=[1,.5,.5]; // 曲ごとの基準音量(設定の音量に掛け算)。200-399と400-infは50%
 const bgmEls=[],bgmGains=[],bgmPre=[];
 let bgmCur=-1;
 const tierOf=k=>k<=199?0:k<=399?1:2;
@@ -131,7 +132,7 @@ function bgmTo(i,dur=1){
   bgmEls.forEach((a,j)=>{
     const gn=bgmGains[j],on=j===i&&S.bgmOn;
     gn.gain.cancelScheduledValues(now);gn.gain.setValueAtTime(gn.gain.value,now);
-    gn.gain.linearRampToValueAtTime(on?S.bgmVol:0,now+dur);
+    gn.gain.linearRampToValueAtTime(on?S.bgmVol*BGM_VOL[j]:0,now+dur);
     if(on){if(a.paused)a.play().catch(()=>{})}
     else if(!a.paused){
       setTimeout(()=>{if(!(bgmCur===j&&S.bgmOn)){a.pause();if(bgmCur<0)a.currentTime=0}},dur*1000+100);
