@@ -99,7 +99,7 @@ let vx,vy,hop,fx,fy,fv,parts;
 try{best=+localStorage.getItem('mugen_best')||0}catch(e){best=0}
 const stars=Array.from({length:50},()=>({x:Math.random(),y:Math.random(),r:Math.random()*1.4+.4,z:Math.random()*.25+.05}));
 function limitFor(k){return .35+2.65*Math.exp(-k/70)}
-function reset(){dirs=[1];n=0;face=1;state='ready';timer=0;limit=0;reason='';camX=0;camY=0;shake=0;
+function reset(){dirs=[1];n=0;face=1;state='ready';timer=0;limit=0;reason='';rankNote='';camX=0;camY=0;shake=0;
   vx=0;vy=0;hop=0;fx=0;fy=0;fv=0;parts=[];
   while(dirs.length<60)dirs.push(Math.random()<.5?1:-1)}
 function stairX(k){let x=0;for(let i=0;i<k;i++)x+=dirs[i];return x}
@@ -117,7 +117,7 @@ const FIREBASE_CONFIG=null;
 const panel=document.getElementById('panel'),rankBtn=document.getElementById('rank'),
   listEl=document.getElementById('list'),nameEl=document.getElementById('name'),
   statEl=document.getElementById('stat');
-let panelOpen=false,fb=null,myName='',lastKey='',asked=false;
+let panelOpen=false,fb=null,myName='',asked=false,pending=0,rankNote='';
 try{myName=localStorage.getItem('mugen_name')||''}catch(e){}
 nameEl.value=myName;
 if(!FIREBASE_CONFIG)rankBtn.style.display='none';
@@ -141,23 +141,36 @@ async function loadRank(){
     const snap=await F.getDocs(F.query(F.collection(db,'scores'),F.orderBy('score','desc'),F.limit(10)));
     listEl.textContent='';let i=0;
     snap.forEach(d=>{i++;const v=d.data(),li=document.createElement('li');
-      if(d.id===fb.uid)li.className='me';
+      if(v.u===fb.uid)li.className='me';
       const a=document.createElement('span'),b=document.createElement('b');
       a.textContent=i+'. '+v.name;b.textContent=v.score+'段';li.append(a,b);listEl.append(li)});
     if(!i)listEl.textContent='まだ記録がありません';
   }catch(e){console.warn(e);listEl.textContent='';statEl.textContent='ランキングを取得できません'}
 }
-async function submit(){
-  const key=best+'|'+myName;
-  if(!FIREBASE_CONFIG||!myName||best<1||key===lastKey)return;
+// ランキングは10枠(ドキュメントID 0〜9)だけ。圏内なら一番低い枠を上書きする。
+// 同じ人が複数枠に入ってもよい。11位以下は保存されない。
+async function submitScore(sc){
+  if(!FIREBASE_CONFIG||!myName||sc<1)return;
   if(!await fbInit())return;
-  try{
-    const {F,db,uid}=fb,ref=F.doc(db,'scores',uid),old=await F.getDoc(ref);
-    const sc=Math.max(best,old.exists()?old.data().score:0);
-    if(!old.exists()||old.data().score!==sc||old.data().name!==myName)
-      await F.setDoc(ref,{name:myName,score:sc,t:F.serverTimestamp()});
-    lastKey=key;statEl.textContent='ランキングに登録しました';
-  }catch(e){console.warn(e);statEl.textContent='登録に失敗しました'}
+  const {F,db,uid}=fb;
+  for(let t=0;t<3;t++){
+    try{
+      const snap=await F.getDocs(F.collection(db,'scores'));
+      const rows=[];snap.forEach(d=>rows.push({id:d.id,score:d.data().score}));
+      let slot;
+      if(rows.length<10){
+        const used=new Set(rows.map(r=>r.id));
+        for(let i=0;i<10;i++)if(!used.has(String(i))){slot=String(i);break}
+      }else{
+        rows.sort((a,b)=>a.score-b.score);
+        if(sc<=rows[0].score){statEl.textContent='ランキング圏外です(10位は'+rows[0].score+'段)';return}
+        slot=rows[0].id;
+      }
+      await F.setDoc(F.doc(db,'scores',slot),{name:myName,score:sc,u:uid,t:F.serverTimestamp()});
+      rankNote='🏆 ランキング入り！';statEl.textContent='ランキングに登録しました！';return;
+    }catch(e){console.warn(e)}
+  }
+  statEl.textContent='登録に失敗しました';
 }
 function openPanel(ask){
   panelOpen=true;panel.style.display='flex';
@@ -165,12 +178,13 @@ function openPanel(ask){
   loadRank();
 }
 function onGameOver(){
-  if(!FIREBASE_CONFIG)return;
+  if(!FIREBASE_CONFIG||n<1)return;
   if(!myName){
-    if(!asked&&n>=1){asked=true;setTimeout(()=>{if(state==='over')openPanel(true)},900)}
+    pending=n;
+    if(!asked){asked=true;setTimeout(()=>{if(state==='over')openPanel(true)},900)}
     return;
   }
-  submit();
+  submitScore(n);
 }
 rankBtn.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();audioInit();openPanel(false)});
 document.getElementById('close').addEventListener('click',()=>{panelOpen=false;panel.style.display='none'});
@@ -178,8 +192,9 @@ document.getElementById('save').addEventListener('click',async()=>{
   const v=nameEl.value.trim().slice(0,12);
   if(!v){statEl.textContent='名前を入力してください';return}
   myName=v;try{localStorage.setItem('mugen_name',v)}catch(e){}
-  if(best<1){statEl.textContent='名前を保存しました(記録が出ると登録されます)';return}
-  statEl.textContent='登録中…';await submit();await loadRank();
+  if(pending>0){const sc=pending;pending=0;statEl.textContent='登録中…';await submitScore(sc)}
+  else statEl.textContent='名前を保存しました';
+  await loadRank();
 });
 
 function act(turn){
@@ -327,6 +342,7 @@ function draw(){
     g.fillStyle='#fff';g.font='600 16px system-ui,sans-serif';g.fillText(reason+' ／ '+n+'段',W/2,py+70);
     g.fillStyle='#a9b2f0';g.font='12px system-ui,sans-serif';
     g.fillText(n>=best&&n>0?'🎉 ベスト更新！':'ボタンでリトライ',W/2,py+96);
+    if(rankNote){g.fillStyle='#ffd24a';g.font='700 15px system-ui,sans-serif';g.fillText(rankNote,W/2,py+142)}
   }
 }
 reset();requestAnimationFrame(loop);
