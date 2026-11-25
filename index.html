@@ -156,7 +156,7 @@ function bgmTo(i,dur=1){
 }
 function bgmSync(){
   const t=tierOf(n);
-  if(bgmCur!==t)bgmTo(t);
+  if(bgmCur!==t)bgmTo(t,bgmCur<0?0:1); // 曲が鳴っていない状態からの開始はフェードなしで即再生
   // 次の曲を少し前から先読み
   [[185,1],[385,2]].forEach(([at,i])=>{
     if(n>=at&&!bgmPre[i]&&bgmEls[i]){bgmPre[i]=1;bgmEls[i].preload='auto';bgmEls[i].load()}
