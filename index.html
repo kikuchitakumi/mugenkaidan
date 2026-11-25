@@ -41,7 +41,7 @@ document.addEventListener('touchend',e=>{const n=Date.now();if(n-lastTouch<350)e
 document.addEventListener('touchmove',e=>{e.preventDefault()},{passive:false});
 
 // ゲーム状態
-const SW=34,SH=26,TW=60,TH=30,DP=34; // 1段の横移動・縦移動、ブロックの幅・奥行き・厚み
+const SW=42,SH=26,TW=76,TH=36,DP=34; // 1段の横移動・縦移動、ブロックの幅・奥行き・厚み
 let dirs,n,face,state,timer,limit,best,reason,lockUntil,camX,camY,shake;
 try{best=+localStorage.getItem('mugen_best')||0}catch(e){best=0}
 function limitFor(k){return .35+2.65*Math.exp(-k/70)}
