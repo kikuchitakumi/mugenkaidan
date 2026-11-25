@@ -23,11 +23,34 @@
   #space{right:max(16px,env(safe-area-inset-right));--glow:#2aa0f066;background:linear-gradient(160deg,#4fc0ff,#1766c2)}
   #mute{position:fixed;top:max(10px,env(safe-area-inset-top));right:max(10px,env(safe-area-inset-right));width:44px;height:44px;
     border-radius:50%;border:1.5px solid #ffffff44;background:#ffffff18;color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;touch-action:none}
+  #rank{position:fixed;top:max(10px,env(safe-area-inset-top));left:max(10px,env(safe-area-inset-left));width:44px;height:44px;
+    border-radius:50%;border:1.5px solid #ffffff44;background:#ffffff18;color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;touch-action:none}
+  #panel{position:fixed;inset:0;z-index:20;background:#05060ccc;display:none;align-items:center;justify-content:center;touch-action:auto}
+  #panel .card{width:min(88vw,340px);background:linear-gradient(#1c1f45,#10122a);border:1.5px solid #ffffff33;border-radius:20px;padding:18px;color:#fff;box-shadow:0 10px 40px #0008}
+  #panel h2{margin:0 0 10px;font-size:20px;text-align:center}
+  #list{list-style:none;margin:0 0 12px;padding:0;min-height:60px;font-size:15px}
+  #list li{display:flex;justify-content:space-between;gap:8px;padding:6px 8px;border-radius:8px}
+  #list li span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #list li:nth-child(odd){background:#ffffff0d}
+  #list li.me{background:#ffd24a33;color:#ffe38a}
+  #panel .row{display:flex;gap:8px}
+  #name{flex:1;min-width:0;font-size:16px;padding:10px;border-radius:10px;border:1px solid #ffffff44;background:#0006;color:#fff;-webkit-user-select:text;user-select:text}
+  #panel button{font-size:15px;font-weight:700;padding:10px 14px;border-radius:10px;border:0;color:#fff;background:linear-gradient(160deg,#4fc0ff,#1766c2)}
+  #panel #close{display:block;width:100%;margin-top:12px;background:#ffffff22}
+  #stat{margin:10px 0 0;font-size:12px;color:#a9b2f0;text-align:center;min-height:16px}
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
 <div id="mute">🔊</div>
+<div id="rank">🏆</div>
+<div id="panel"><div class="card">
+  <h2>🏆 ランキング</h2>
+  <ul id="list"></ul>
+  <div class="row"><input id="name" maxlength="12" placeholder="ニックネーム" autocomplete="off"><button id="save">保存</button></div>
+  <p id="stat"></p>
+  <button id="close">閉じる</button>
+</div></div>
 <div class="btn" id="ctrl">Ctrl<small>方向転換して1段</small></div>
 <div class="btn" id="space">Space<small>そのまま1段</small></div>
 <script>
@@ -42,8 +65,8 @@ addEventListener('resize',resize);resize();
 ['gesturestart','gesturechange','gestureend','contextmenu','dblclick'].forEach(e=>
   document.addEventListener(e,ev=>ev.preventDefault(),{passive:false}));
 let lastTouch=0;
-document.addEventListener('touchend',e=>{const n=Date.now();if(n-lastTouch<350)e.preventDefault();lastTouch=n},{passive:false});
-document.addEventListener('touchmove',e=>{e.preventDefault()},{passive:false});
+document.addEventListener('touchend',e=>{if(e.target.closest&&e.target.closest('#panel'))return;const n=Date.now();if(n-lastTouch<350)e.preventDefault();lastTouch=n},{passive:false});
+document.addEventListener('touchmove',e=>{if(e.target.closest&&e.target.closest('#panel'))return;e.preventDefault()},{passive:false});
 
 // ---------- 効果音(WebAudioで合成。Ctrl用とSpace用の2種類だけ) ----------
 let ac=null,muted=false;
@@ -85,9 +108,82 @@ function burst(x,y,col,cnt,sp){
     parts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-sp*.4,life:1,col})}}
 function fail(r){state='over';reason=r;lockUntil=performance.now()+450;shake=1;fv=-120;
   burst(vx,vy,'#ff6b6b',26,200);
-  if(n>best){best=n;try{localStorage.setItem('mugen_best',best)}catch(e){}}}
+  if(n>best){best=n;try{localStorage.setItem('mugen_best',best)}catch(e){}}
+  onGameOver()}
+
+// ---------- ランキング(Firebase Firestore) ----------
+// Firebaseの設定を貼ると有効になります(nullの間はランキング機能は非表示)
+const FIREBASE_CONFIG=null;
+const panel=document.getElementById('panel'),rankBtn=document.getElementById('rank'),
+  listEl=document.getElementById('list'),nameEl=document.getElementById('name'),
+  statEl=document.getElementById('stat');
+let panelOpen=false,fb=null,myName='',lastKey='',asked=false;
+try{myName=localStorage.getItem('mugen_name')||''}catch(e){}
+nameEl.value=myName;
+if(!FIREBASE_CONFIG)rankBtn.style.display='none';
+const FB='https://www.gstatic.com/firebasejs/10.12.2/';
+async function fbInit(){
+  if(!FIREBASE_CONFIG)return null;
+  if(fb)return fb;
+  try{
+    const [A,Au,F]=await Promise.all([import(FB+'firebase-app.js'),import(FB+'firebase-auth.js'),import(FB+'firebase-firestore.js')]);
+    const app=A.initializeApp(FIREBASE_CONFIG),auth=Au.getAuth(app);
+    await Au.signInAnonymously(auth);
+    fb={F,db:F.getFirestore(app),uid:auth.currentUser.uid};
+  }catch(e){console.warn(e);statEl.textContent='ランキングに接続できません'}
+  return fb;
+}
+async function loadRank(){
+  listEl.textContent='読み込み中…';
+  if(!await fbInit()){listEl.textContent='';return}
+  try{
+    const {F,db}=fb;
+    const snap=await F.getDocs(F.query(F.collection(db,'scores'),F.orderBy('score','desc'),F.limit(10)));
+    listEl.textContent='';let i=0;
+    snap.forEach(d=>{i++;const v=d.data(),li=document.createElement('li');
+      if(d.id===fb.uid)li.className='me';
+      const a=document.createElement('span'),b=document.createElement('b');
+      a.textContent=i+'. '+v.name;b.textContent=v.score+'段';li.append(a,b);listEl.append(li)});
+    if(!i)listEl.textContent='まだ記録がありません';
+  }catch(e){console.warn(e);listEl.textContent='';statEl.textContent='ランキングを取得できません'}
+}
+async function submit(){
+  const key=best+'|'+myName;
+  if(!FIREBASE_CONFIG||!myName||best<1||key===lastKey)return;
+  if(!await fbInit())return;
+  try{
+    const {F,db,uid}=fb,ref=F.doc(db,'scores',uid),old=await F.getDoc(ref);
+    const sc=Math.max(best,old.exists()?old.data().score:0);
+    if(!old.exists()||old.data().score!==sc||old.data().name!==myName)
+      await F.setDoc(ref,{name:myName,score:sc,t:F.serverTimestamp()});
+    lastKey=key;statEl.textContent='ランキングに登録しました';
+  }catch(e){console.warn(e);statEl.textContent='登録に失敗しました'}
+}
+function openPanel(ask){
+  panelOpen=true;panel.style.display='flex';
+  statEl.textContent=ask?'名前を入れるとランキングに参加できます':'';
+  loadRank();
+}
+function onGameOver(){
+  if(!FIREBASE_CONFIG)return;
+  if(!myName){
+    if(!asked&&n>=1){asked=true;setTimeout(()=>{if(state==='over')openPanel(true)},900)}
+    return;
+  }
+  submit();
+}
+rankBtn.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();audioInit();openPanel(false)});
+document.getElementById('close').addEventListener('click',()=>{panelOpen=false;panel.style.display='none'});
+document.getElementById('save').addEventListener('click',async()=>{
+  const v=nameEl.value.trim().slice(0,12);
+  if(!v){statEl.textContent='名前を入力してください';return}
+  myName=v;try{localStorage.setItem('mugen_name',v)}catch(e){}
+  if(best<1){statEl.textContent='名前を保存しました(記録が出ると登録されます)';return}
+  statEl.textContent='登録中…';await submit();await loadRank();
+});
 
 function act(turn){
+  if(panelOpen)return;
   audioInit();
   turn?sfxCtrl():sfxSpace();
   const now=performance.now();
@@ -110,7 +206,7 @@ function bind(id,turn){
 bind('ctrl',true);bind('space',false);
 // 入力: キーボード
 addEventListener('keydown',e=>{
-  if(e.repeat)return;
+  if(e.repeat||(e.target&&e.target.tagName==='INPUT'))return;
   if(e.key==='Control'||e.code==='ControlLeft'||e.code==='ControlRight'){e.preventDefault();act(true)}
   else if(e.code==='Space'){e.preventDefault();act(false)}
 });
