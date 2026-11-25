@@ -190,8 +190,8 @@ eSeV.addEventListener('input',()=>{S.seVol=eSeV.value/100;saveS()});
 eSeV.addEventListener('change',()=>{audioInit();sfxSpace()});
 
 // ---------- ゲーム状態 ----------
-const SW=56,SH=38,SR=2.5; // 階段同士の間隔(横・縦)・角丸
-const STW=66,STH=5;       // 階段(光の棒)の長さと太さ
+const SW=56,SH=38,SR=3; // 階段同士の間隔(横・縦)・角丸
+const STW=66,STH=7;       // 階段(光の棒)の長さと太さ
 let dirs,n,face,state,timer,limit,best,reason,lockUntil,camX,camY,shake;
 let recT=0,recShown=false,runBest=0; // NEW RECORD演出の残り時間/今回表示済みか/開始時の自己ベスト
 let vx,vy,hop,fx,fy,fv,parts;
@@ -600,7 +600,7 @@ function draw(){
   for(let k=to;k>=from;k--){
     const x=ox+stairX(k)*SW-STW/2,y=oy-k*SH,w=STW,h=STH;
     const cur=k===n,past=k<n;
-    g.globalAlpha=(past?.5:1)*(k>n+9?Math.max(0,1-(k-n-9)/6):1);
+    g.globalAlpha=(past?.6:1)*(k>n+9?Math.max(0,1-(k-n-9)/6):1);
     let c1,c2;
     if(cur){c1=curC1;c2=curC2}
     else{c1=st1;c2=st2}
@@ -608,10 +608,11 @@ function draw(){
     g.fillStyle=gr;
     // 棒の光(近くの段だけ光らせて軽く)
     if(cur){g.shadowColor=lux>.5?'#58b8ff':'#ffd24a';g.shadowBlur=20+12*lux}
-    else if(k>=n-3&&k<=n+9){g.shadowColor=glow>.01?'#3aa0ff':c1;g.shadowBlur=glow>.01?16*glow:9}
+    else if(k>=n-3&&k<=n+9){g.shadowColor=glow>.01?'#3aa0ff':c1;g.shadowBlur=glow>.01?14*glow:5}
     rr(x,y,w,h,SR);g.fill();
     g.shadowBlur=0;
-    g.fillStyle=glow>.3?'#ffffffcc':'#ffffff88';rr(x+4,y,w-8,1.6,.8);g.fill(); // 上辺のハイライト
+    g.strokeStyle=lineC;g.lineWidth=1.2;g.stroke(); // 縁取りで輪郭をはっきり
+    g.fillStyle=glow>.3?'#ffffffee':'#ffffffcc';rr(x+3,y+1,w-6,2,1);g.fill(); // 上辺のハイライト
     if(glow>.3){ // 光が走る
       g.save();rr(x,y-2,w,h+4,SR);g.clip();g.globalAlpha*=glow*.8;
       const sx=((tw*70+k*41)%(w+50))-25;
