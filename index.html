@@ -258,7 +258,7 @@ const FIREBASE_CONFIG={
 const panel=document.getElementById('panel'),rankBtn=document.getElementById('rank'),
   listEl=document.getElementById('list'),nameEl=document.getElementById('name'),
   statEl=document.getElementById('stat');
-let panelOpen=false,fb=null,myName='',asked=false,pending=0,rankNote='';
+let panelOpen=false,fb=null,myName='',asked=false,pending=0,rankNote='',rankAt=0;
 try{myName=localStorage.getItem('mugen_name')||''}catch(e){}
 nameEl.value=myName;
 if(!FIREBASE_CONFIG)rankBtn.style.display='none';
@@ -308,7 +308,7 @@ async function submitScore(sc){
         slot=rows[0].id;
       }
       await F.setDoc(F.doc(db,'scores',slot),{name:myName,score:sc,u:uid,t:F.serverTimestamp()});
-      rankNote='🏆 ランキング入り！';statEl.textContent='ランキングに登録しました！';return;
+      rankNote='🏆 ランキング入り！';rankAt=performance.now();statEl.textContent='ランキングに登録しました！';return;
     }catch(e){console.warn(e)}
   }
   statEl.textContent='登録に失敗しました';
@@ -693,7 +693,14 @@ function draw(){
     g.fillStyle='#fff';g.font='600 16px system-ui,sans-serif';g.fillText(reason+' ／ '+n+'段',W/2,py+70);
     g.fillStyle='#a9b2f0';g.font='12px system-ui,sans-serif';
     g.fillText(n>runBest&&n>0?'🎉 NEW RECORD！ '+n+'段':'ベスト '+best+'段 ／ ボタンでリトライ',W/2,py+96);
-    if(rankNote){g.fillStyle='#ffd24a';g.font='700 15px system-ui,sans-serif';g.fillText(rankNote,W/2,py+142)}
+    if(rankNote){ // ランキング入り: 大きな金色バナー(ポンと弾んで表示)
+      const age=(performance.now()-rankAt)/1000,pop=age<.35?.5+.5*Math.sin(age/.35*Math.PI/2)+.12*Math.sin(age/.35*Math.PI):1;
+      g.save();g.translate(W/2,py+150);g.scale(pop,pop);
+      const rg=g.createLinearGradient(-130,0,130,0);rg.addColorStop(0,'#ffe27a');rg.addColorStop(1,'#ffb52e');
+      g.shadowColor='#ffc83d';g.shadowBlur=22;g.fillStyle=rg;rr(-130,-26,260,52,26);g.fill();g.shadowBlur=0;
+      g.fillStyle='#5a3a00';g.font='800 24px system-ui,sans-serif';g.fillText(rankNote,0,8);
+      g.restore();
+    }
   }
 }
 reset();requestAnimationFrame(loop);
