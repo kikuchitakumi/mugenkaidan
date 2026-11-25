@@ -41,6 +41,11 @@
   .set{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 4px;font-size:15px}
   .set input[type=range]{flex:1;max-width:150px;accent-color:#4fc0ff}
   .set input[type=checkbox]{width:22px;height:22px;accent-color:#4fc0ff}
+  #setpanel .card{max-height:88vh;overflow:auto}
+  #skins{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+  #skins .sk{width:44px;height:44px;border-radius:12px;border:2px solid #ffffff44;padding:0;font-size:16px;color:#fff}
+  #skins .sk.sel{border-color:#fff;box-shadow:0 0 0 2px #4fc0ff}
+  #skins .sk.lock{opacity:.5}
   .tests{display:flex;gap:6px;margin-top:6px}
   #setpanel .tests button{flex:1;padding:9px 4px;font-size:13px}
   #setpanel .note{margin:8px 0 0;font-size:12px;color:#a9b2f0;line-height:1.5}
@@ -56,6 +61,9 @@
   <label class="set"><span>BGM音量</span><input type="range" id="s-bgmv" min="0" max="100"></label>
   <label class="set"><span>効果音</span><input type="checkbox" id="s-se"></label>
   <label class="set"><span>効果音音量</span><input type="range" id="s-sev" min="0" max="100"></label>
+  <div class="set" style="padding-bottom:0"><span>階段のスキン</span></div>
+  <div id="skins"></div>
+  <p class="note" id="skin-note"></p>
   <div class="set" style="padding-bottom:0"><span>BGM試聴</span></div>
   <div class="tests"><button data-t="0">1〜199</button><button data-t="1">200〜399</button><button data-t="2">400〜</button><button data-t="-1">停止</button></div>
   <p class="note">階数でBGMが切り替わります<br>1〜199段 / 200〜399段 / 400段〜</p>
@@ -86,7 +94,7 @@ document.addEventListener('touchend',e=>{if(e.target.closest&&e.target.closest('
 document.addEventListener('touchmove',e=>{if(e.target.closest&&e.target.closest('#panel,#setpanel'))return;e.preventDefault()},{passive:false});
 
 // ---------- 設定 ----------
-const S={bgmOn:true,bgmVol:.5,seOn:true,seVol:1};
+const S={bgmOn:true,bgmVol:.5,seOn:true,seVol:1,skin:'auto'};
 try{Object.assign(S,JSON.parse(localStorage.getItem('mugen_set')||'{}'))}catch(e){}
 const saveS=()=>{try{localStorage.setItem('mugen_set',JSON.stringify(S))}catch(e){}};
 
@@ -156,7 +164,7 @@ const gearEl=document.getElementById('gear'),setpanel=document.getElementById('s
 gearEl.addEventListener('pointerdown',e=>{
   e.preventDefault();e.stopPropagation();audioInit();
   eBgm.checked=S.bgmOn;eBgmV.value=Math.round(S.bgmVol*100);
-  eSe.checked=S.seOn;eSeV.value=Math.round(S.seVol*100);
+  eSe.checked=S.seOn;eSeV.value=Math.round(S.seVol*100);buildSkins();
   panelOpen=true;setpanel.style.display='flex';
 });
 document.getElementById('s-close').addEventListener('click',()=>{
@@ -175,7 +183,7 @@ eSeV.addEventListener('input',()=>{S.seVol=eSeV.value/100;saveS()});
 eSeV.addEventListener('change',()=>{audioInit();sfxSpace()});
 
 // ---------- ゲーム状態 ----------
-const SW=88,SH=40,SR=9; // 階段同士の間隔(横・縦)・角丸
+const SW=80,SH=40,SR=9; // 階段同士の間隔(横・縦)・角丸
 const STW=67,STH=24;    // 階段ブロック自体の大きさ
 let dirs,n,face,state,timer,limit,best,reason,lockUntil,camX,camY,shake;
 let vx,vy,hop,fx,fy,fv,parts;
@@ -188,10 +196,35 @@ const PAL=[ // 上/中/下/光/星の明るさ/雲の濃さ
   {c:['#070c26','#14214c','#2c3f7c'],gl:'#5a7bd4',star:.8,cloud:0,s:['#a9b6ff','#5f6ed6']},  // 200〜 夜
   {c:['#04020c','#12082c','#2c1552'],gl:'#7a4bd4',star:1,cloud:0,s:['#a9b6ff','#5f6ed6']}    // 300〜 宇宙
 ].map(p=>({...p,rgb:p.c.map(hex),g:hex(p.gl),sc:p.s.map(hex)}));
+const SKINS=[
+  {id:'auto',name:'自動(背景に合わせる)',sw:'linear-gradient(135deg,#7f5cf0,#a9b6ff)'},
+  {id:'pink',name:'ピンク',c:['#ffd0e8','#e0559f'],line:'#4a0f33aa'},
+  {id:'mint',name:'ミント',c:['#c8ffe2','#2fbf86'],line:'#073a2aaa'},
+  {id:'white',name:'ホワイト',c:['#ffffff','#b8c2dd'],line:'#2a3560aa'},
+  {id:'dark',name:'ダーク',c:['#5a6088','#1c2038'],line:'#b8c6ffcc'},
+  {id:'blue',name:'蒼光',c:['#d8f4ff','#2b86ff'],line:'#e6f8ffcc',lock:400}
+].map(k=>({...k,rgb:k.c&&k.c.map(hex),sw:k.sw||'linear-gradient(135deg,'+(k.c&&k.c[0])+','+(k.c&&k.c[1])+')'}));
+const skinOk=k=>!k.lock||best>=k.lock;
+const curSkin=()=>SKINS.find(k=>k.id===S.skin&&skinOk(k))||SKINS[0];
+function buildSkins(){
+  const box=document.getElementById('skins'),note=document.getElementById('skin-note');
+  box.textContent='';
+  SKINS.forEach(k=>{
+    const ok=skinOk(k),b=document.createElement('button');
+    b.className='sk'+(curSkin()===k?' sel':'')+(ok?'':' lock');
+    b.style.background=k.sw;b.title=k.name;b.textContent=ok?'':'🔒';
+    b.addEventListener('click',()=>{
+      if(!ok){note.textContent='🔒 '+k.name+'は'+k.lock+'段に到達すると解放されます';return}
+      S.skin=k.id;saveS();buildSkins();
+    });
+    box.append(b);
+  });
+  note.textContent='選択中: '+curSkin().name+(best<400?' ／ 🔒蒼光は400段到達で解放':'');
+}
 let bgN=0;
 const mixc=(a,b,t)=>a.map((v,i)=>Math.round(v+(b[i]-v)*t));
 const css=(c,a)=>a==null?'rgb('+c+')':'rgba('+c+','+a+')';
-function limitFor(k){return .35+2.65*Math.exp(-k/150)}
+function limitFor(k){return .35+2.65*Math.exp(-k/250)}
 function reset(){dirs=[1];n=0;face=1;state='ready';timer=0;limit=0;reason='';rankNote='';bgN=0;camX=0;camY=0;shake=0;
   vx=0;vy=0;hop=0;fx=0;fy=0;fv=0;parts=[];
   while(dirs.length<60)dirs.push(Math.random()<.5?1:-1)}
@@ -336,6 +369,11 @@ function loop(t){
   vx+=(tx-vx)*Math.min(1,dt*22);vy+=(ty-vy)*Math.min(1,dt*22);
   if(state==='over'){fv+=dt*900;fy+=fv*dt;fx+=face*dt*40}
   for(const p of parts){p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=dt*320;p.life-=dt*2.2}
+  const lx=Math.min(1,Math.max(0,(bgN-390)/20));
+  if(lx>.3&&Math.random()<lx*dt*30){ // 400段〜: 階段から光の粒が立ちのぼる
+    const k=n-2+Math.floor(Math.random()*10);
+    parts.push({x:stairX(k)*SW+(Math.random()-.5)*STW,y:-k*SH+Math.random()*STH,vx:(Math.random()-.5)*20,vy:-40-Math.random()*40,life:1,col:Math.random()<.5?'#bfe9ff':'#ffffff'});
+  }
   parts=parts.filter(p=>p.life>0);
   draw();requestAnimationFrame(loop);
 }
@@ -389,17 +427,24 @@ function drawCat(f,over){
 function draw(){
   // 背景: 100段ごとに 空→夕焼け→夜→宇宙。各100段の終盤20段でなめらかに次へ
   bgN+=(n-bgN)*.08;
+  const lux=Math.min(1,Math.max(0,(bgN-390)/20)); // 400段で豪華(蒼光)モードへ
   const pi=Math.min(3,Math.floor(bgN/100)),pj=Math.min(3,pi+1);
   const bt=pi>=3?0:Math.min(1,Math.max(0,((bgN%100)-80)/20));
   const A=PAL[pi],B=PAL[pj];
   const c0=mixc(A.rgb[0],B.rgb[0],bt),c1=mixc(A.rgb[1],B.rgb[1],bt),c2=mixc(A.rgb[2],B.rgb[2],bt);
-  const gcol=mixc(A.g,B.g,bt),starA=A.star+(B.star-A.star)*bt,cloudA=A.cloud+(B.cloud-A.cloud)*bt;
-  const st1=css(mixc(A.sc[0],B.sc[0],bt)),st2=css(mixc(A.sc[1],B.sc[1],bt));
+  const gcol=mixc(mixc(A.g,B.g,bt),[58,160,255],lux),starA=A.star+(B.star-A.star)*bt,cloudA=A.cloud+(B.cloud-A.cloud)*bt;
+  // 階段の色: スキン(自動なら背景連動) → 400段到達で蒼光に
+  const sk=curSkin();
+  const b1=sk.rgb?sk.rgb[0]:mixc(A.sc[0],B.sc[0],bt),b2=sk.rgb?sk.rgb[1]:mixc(A.sc[1],B.sc[1],bt);
+  const st1=css(mixc(b1,[226,246,255],lux)),st2=css(mixc(b2,[30,120,255],lux));
+  const glow=Math.max(lux,sk.id==='blue'?.7:0);
+  const lineC=(lux>.5||sk.id==='blue')?'#e6f8ffcc':(sk.line||'#0b0f3a88');
+  const curC1=css(mixc([255,242,168],[255,255,255],lux)),curC2=css(mixc([255,181,46],[110,205,255],lux));
   const bg=g.createLinearGradient(0,0,0,H);
   bg.addColorStop(0,css(c0));bg.addColorStop(.55,css(c1));bg.addColorStop(1,css(c2));
   g.fillStyle=bg;g.fillRect(0,0,W,H);
   const gl=g.createRadialGradient(W/2,H*.45,0,W/2,H*.45,H*.6);
-  gl.addColorStop(0,css(gcol,.28));gl.addColorStop(1,css(gcol,0));
+  gl.addColorStop(0,css(gcol,.28+.22*lux));gl.addColorStop(1,css(gcol,0));
   g.fillStyle=gl;g.fillRect(0,0,W,H);
   camX+=(vx-camX)*.18;camY+=(vy-camY)*.18;
   const tw=performance.now()/1000;
@@ -431,17 +476,24 @@ function draw(){
     const cur=k===n,past=k<n,ms=k%10===0&&k>0;
     g.globalAlpha=(past?.5:1)*(k>n+9?Math.max(0,1-(k-n-9)/6):1);
     let c1,c2;
-    if(cur){c1='#fff2a8';c2='#ffb52e'}
+    if(cur){c1=curC1;c2=curC2}
     else if(ms){c1='#ffe9a0';c2='#e0a43a'}
     else{c1=st1;c2=st2}
     const gr=g.createLinearGradient(0,y,0,y+h);gr.addColorStop(0,c1);gr.addColorStop(1,c2);
     g.fillStyle=gr;
-    if(cur){g.shadowColor='#ffc83d';g.shadowBlur=24}
+    if(cur){g.shadowColor=lux>.5?'#58b8ff':'#ffc83d';g.shadowBlur=24+14*lux}
+    else if(glow>.01&&k>=n-3&&k<=n+9){g.shadowColor='#3aa0ff';g.shadowBlur=18*glow}
     rr(x,y,w,h,SR);g.fill();
     g.shadowBlur=0;
-    g.strokeStyle='#0b0f3a88';g.lineWidth=1.5;g.stroke(); // 縁取りで背景と分離
+    g.strokeStyle=lineC;g.lineWidth=1.5;g.stroke(); // 縁取りで背景と分離
     // 上辺のハイライト
-    g.fillStyle='#ffffff55';rr(x+6,y+2,w-12,3,1.5);g.fill();
+    g.fillStyle=glow>.3?'#ffffffaa':'#ffffff55';rr(x+6,y+2,w-12,3,1.5);g.fill();
+    if(glow>.3){ // 光が走る
+      g.save();rr(x,y,w,h,SR);g.clip();g.globalAlpha*=glow*.8;
+      const sx=((tw*70+k*41)%(w+50))-25;
+      g.fillStyle='#ffffff66';g.beginPath();g.moveTo(x+sx,y);g.lineTo(x+sx+14,y);g.lineTo(x+sx+4,y+h);g.lineTo(x+sx-10,y+h);g.fill();
+      g.restore();
+    }
     if(ms){g.fillStyle='#5a3a00';g.font='bold 13px sans-serif';g.textAlign='center';g.fillText(k,x+w/2,y+h-7)}
     g.globalAlpha=1;
   }
