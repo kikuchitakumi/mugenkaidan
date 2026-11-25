@@ -126,7 +126,7 @@ const sfxCtrl=()=>tone(780,.09,'triangle',.2);           // Ctrl: 高めの「�
 
 // ---------- BGM(階数で切り替え) ----------
 const BGM=['1-199.mp3','200-399.mp3','400-inf.mp3'];
-const BGM_VOL=[1,.45,.45]; // 曲ごとの基準音量(設定の音量に掛け算)。200-399と400-infは45%
+const BGM_VOL=[1,.6,.6]; // 曲ごとの音量補正
 const bgmEls=[],bgmGains=[],bgmPre=[];
 let bgmCur=-1;
 const tierOf=k=>k<=199?0:k<=399?1:2;
