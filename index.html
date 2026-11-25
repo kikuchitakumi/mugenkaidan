@@ -41,10 +41,10 @@ document.addEventListener('touchend',e=>{const n=Date.now();if(n-lastTouch<350)e
 document.addEventListener('touchmove',e=>{e.preventDefault()},{passive:false});
 
 // ゲーム状態
-const SW=46,SH=30; // 階段の幅・高さ
+const SW=34,SH=26,TW=60,TH=30,DP=34; // 1段の横移動・縦移動、ブロックの幅・奥行き・厚み
 let dirs,n,face,state,timer,limit,best,reason,lockUntil,camX,camY,shake;
 try{best=+localStorage.getItem('mugen_best')||0}catch(e){best=0}
-function limitFor(k){return .35+1.65*Math.exp(-k/60)}
+function limitFor(k){return .35+2.65*Math.exp(-k/70)}
 function reset(){dirs=[1];n=0;face=1;state='ready';timer=0;limit=0;reason='';camX=0;camY=0;shake=0;
   while(dirs.length<60)dirs.push(Math.random()<.5?1:-1)}
 function stairX(k){let x=0;for(let i=0;i<k;i++)x+=dirs[i];return x}
@@ -86,29 +86,36 @@ function loop(t){
 }
 
 function draw(){
-  g.fillStyle='#12141c';g.fillRect(0,0,W,H);
+  const bg=g.createLinearGradient(0,0,0,H);bg.addColorStop(0,'#1b2038');bg.addColorStop(1,'#0c0e16');
+  g.fillStyle=bg;g.fillRect(0,0,W,H);
   const px=stairX(n)*SW,py=-n*SH;
   camX+=(px-camX)*.25;camY+=(py-camY)*.25;
   const ox=W/2-camX+(shake?Math.sin(performance.now()/20)*shake*6:0);
   const oy=H*.5-camY;
-  // 階段
-  const from=Math.max(0,n-12),to=n+14;
-  for(let k=from;k<=to;k++){
-    const x=ox+stairX(k)*SW,y=oy-k*SH;
-    const cur=k===n;
-    g.fillStyle=cur?'#ffd24a':(k<n?'#3a4058':'#5b6488');
-    g.fillRect(x-SW/2+2,y,SW-4,SH-4);
-    g.fillStyle='#0004';g.fillRect(x-SW/2+2,y+SH-10,SW-4,6);
-    if(k%10===0&&k>0){g.fillStyle='#fff';g.font='12px sans-serif';g.textAlign='center';g.fillText(k,x,y+SH-9)}
+  // 階段(奥から手前へ描画)
+  const from=Math.max(0,n-8),to=n+14;
+  for(let k=to;k>=from;k--){
+    const x=ox+stairX(k)*SW,y=oy-k*SH,cur=k===n,past=k<n;
+    const top=cur?'#ffd24a':past?'#46507a':'#7886c4';
+    const lf=cur?'#c9971a':past?'#2c3454':'#566098';
+    const rt=cur?'#9a7010':past?'#1f2540':'#3e4776';
+    const hw=TW/2,hh=TH/2;
+    g.fillStyle=lf;g.beginPath();g.moveTo(x-hw,y);g.lineTo(x,y+hh);g.lineTo(x,y+hh+DP);g.lineTo(x-hw,y+DP);g.fill();
+    g.fillStyle=rt;g.beginPath();g.moveTo(x+hw,y);g.lineTo(x,y+hh);g.lineTo(x,y+hh+DP);g.lineTo(x+hw,y+DP);g.fill();
+    g.fillStyle=top;g.beginPath();g.moveTo(x,y-hh);g.lineTo(x+hw,y);g.lineTo(x,y+hh);g.lineTo(x-hw,y);g.fill();
+    g.strokeStyle='#fff3';g.lineWidth=1;g.stroke();
+    if(k%10===0&&k>0){g.fillStyle='#fff';g.font='bold 12px sans-serif';g.textAlign='center';g.fillText(k,x,y+4)}
   }
   // プレイヤー
   const x=ox+px,y=oy+py;
-  g.fillStyle=state==='over'?'#e5484d':'#fff';
-  g.beginPath();g.arc(x,y-12,11,0,7);g.fill();
-  g.fillStyle='#12141c';g.beginPath();g.arc(x+face*5,y-14,3,0,7);g.fill();
+  g.fillStyle='#0006';g.beginPath();g.ellipse(x,y+2,14,7,0,0,7);g.fill();
+  const bodyC=state==='over'?'#e5484d':'#fff';
+  g.fillStyle=bodyC;g.beginPath();g.roundRect(x-9,y-30,18,26,8);g.fill();
+  g.beginPath();g.arc(x,y-32,9,0,7);g.fill();
+  g.fillStyle='#12141c';g.beginPath();g.arc(x+face*4,y-33,2.5,0,7);g.fill();
   // 向きの矢印
   g.fillStyle='#ffd24a';g.font='bold 18px sans-serif';g.textAlign='center';
-  g.fillText(face>0?'▶':'◀',x+face*28,y-8);
+  g.fillText(face>0?'▶':'◀',x+face*30,y-20);
 
   // HUD
   g.fillStyle='#fff';g.textAlign='center';g.font='bold 44px sans-serif';
