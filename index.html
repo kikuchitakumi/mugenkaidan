@@ -193,6 +193,7 @@ eSeV.addEventListener('change',()=>{audioInit();sfxSpace()});
 const SW=56,SH=38,SR=2.5; // 階段同士の間隔(横・縦)・角丸
 const STW=66,STH=5;       // 階段(光の棒)の長さと太さ
 let dirs,n,face,state,timer,limit,best,reason,lockUntil,camX,camY,shake;
+let recT=0,recShown=false,runBest=0; // NEW RECORD演出の残り時間/今回表示済みか/開始時の自己ベスト
 let vx,vy,hop,fx,fy,fv,parts;
 try{best=+localStorage.getItem('mugen_best')||0}catch(e){best=0}
 const stars=Array.from({length:70},()=>({x:Math.random(),y:Math.random(),r:Math.random()*1.4+.4,z:Math.random()*.25+.05}));
@@ -232,7 +233,7 @@ let bgN=0;
 const mixc=(a,b,t)=>a.map((v,i)=>Math.round(v+(b[i]-v)*t));
 const css=(c,a)=>a==null?'rgb('+c+')':'rgba('+c+','+a+')';
 function limitFor(k){return .35+2.65*Math.exp(-k/250)}
-function reset(){dirs=[1];n=0;face=1;state='ready';timer=0;limit=0;reason='';rankNote='';bgN=0;camX=0;camY=0;shake=0;
+function reset(){recT=0;recShown=false;runBest=best;dirs=[1];n=0;face=1;state='ready';timer=0;limit=0;reason='';rankNote='';bgN=0;camX=0;camY=0;shake=0;
   vx=0;vy=0;hop=0;fx=0;fy=0;fv=0;parts=[];
   while(dirs.length<60)dirs.push(Math.random()<.5?1:-1)}
 function stairX(k){let x=0;for(let i=0;i<k;i++)x+=dirs[i];return x}
@@ -346,6 +347,9 @@ function act(turn){
   if(turn)face=-face;
   if(dirs[n]!==face){fail('階段のない方向です');return}
   n++;state='play';hop=1;bgmSync();
+  if(!recShown&&runBest>0&&n>runBest){ // 自己ベストを超えた瞬間
+    recShown=true;recT=2.6;burst(stairX(n)*SW,-n*SH,'#ffd24a',36,230);
+  }
   burst(stairX(n)*SW,-n*SH,turn?'#b98cff':'#7fd0ff',n%10===0?22:9,n%10===0?170:90);
   while(dirs.length<n+60)dirs.push(Math.random()<.5?1:-1);
   limit=limitFor(n);timer=limit;
@@ -371,7 +375,7 @@ function loop(t){
   const dt=Math.min((t-prev)/1000,.1);prev=t;
   if(state==='play'){timer-=dt;if(timer<=0){timer=0;fail('時間切れ')}}
   shake=Math.max(0,shake-dt*3);
-  hop=Math.max(0,hop-dt*6);
+  hop=Math.max(0,hop-dt*6);recT=Math.max(0,recT-dt);
   const tx=stairX(n)*SW,ty=-n*SH;
   vx+=(tx-vx)*Math.min(1,dt*22);vy+=(ty-vy)*Math.min(1,dt*22);
   if(state==='over'){fv+=dt*900;fy+=fv*dt;fx+=face*dt*40}
@@ -633,8 +637,14 @@ function draw(){
   g.shadowColor='#7f8cff';g.shadowBlur=18;
   g.fillStyle='#fff';g.font='800 52px system-ui,sans-serif';
   g.fillText(n,W/2,62);g.shadowBlur=0;
-  g.fillStyle='#ffffffcc';g.font='600 12px system-ui,sans-serif';
-  g.fillText('BEST '+best,W/2,84);
+  // 自己ベスト(プレイ中に超えたら、その場で更新表示+金色)
+  const live=Math.max(best,n),rec=n>runBest&&n>0&&runBest>0;
+  const btxt='🏆 BEST '+live,bpw=104;
+  if(rec){const pgd=g.createLinearGradient(W/2-bpw/2,0,W/2+bpw/2,0);pgd.addColorStop(0,'#ffe27a');pgd.addColorStop(1,'#ffb52e');g.fillStyle=pgd}
+  else g.fillStyle='#00000040';
+  rr(W/2-bpw/2,68,bpw,20,10);g.fill();
+  g.fillStyle=rec?'#5a3a00':'#ffffffee';g.font='700 12px system-ui,sans-serif';
+  g.fillText(btxt,W/2,82.5);
   const bw=Math.min(W-48,340),bx=(W-bw)/2,by=98;
   g.fillStyle='#00000033';rr(bx,by,bw,10,5);g.fill();
   if(state==='play'){
@@ -645,6 +655,16 @@ function draw(){
     if(r>0){rr(bx,by,Math.max(10,bw*r),10,5);g.fill()}
     g.shadowBlur=0;
     g.fillStyle='#ffffffdd';g.font='11px system-ui,sans-serif';g.fillText('制限 '+limit.toFixed(2)+'s',W/2,by+28);
+  }
+  if(recT>0){ // NEW RECORD: 画面上部の小さなバナー(操作の邪魔にならない位置)
+    const age=2.6-recT,pop=age<.3?.6+.4*Math.sin(age/.3*Math.PI/2):1,fade=recT<.6?recT/.6:1;
+    g.save();g.globalAlpha=fade;g.translate(W/2,152);g.scale(pop,pop);
+    const rg=g.createLinearGradient(-86,0,86,0);rg.addColorStop(0,'#ffe27a');rg.addColorStop(1,'#ffb52e');
+    g.shadowColor='#ffc83d';g.shadowBlur=16;g.fillStyle=rg;rr(-86,-15,172,30,15);g.fill();g.shadowBlur=0;
+    g.fillStyle='#5a3a00';g.font='800 14px system-ui,sans-serif';g.fillText('NEW RECORD!',0,5);
+    g.fillStyle='#fff6c8';g.font='14px sans-serif';
+    [[-100,-6],[100,-6],[-94,12],[94,12]].forEach(([sx,sy],i)=>{g.globalAlpha=fade*(.5+.5*Math.sin(tw*9+i*1.7));g.fillText('✦',sx,sy)});
+    g.restore();
   }
   if(state==='ready'){
     g.fillStyle='#ffffffee';g.font='800 20px system-ui,sans-serif';
@@ -660,7 +680,7 @@ function draw(){
     g.fillStyle='#ff7b7b';g.font='800 28px system-ui,sans-serif';g.fillText('失敗！',W/2,py+42);
     g.fillStyle='#fff';g.font='600 16px system-ui,sans-serif';g.fillText(reason+' ／ '+n+'段',W/2,py+70);
     g.fillStyle='#a9b2f0';g.font='12px system-ui,sans-serif';
-    g.fillText(n>=best&&n>0?'🎉 ベスト更新！':'ボタンでリトライ',W/2,py+96);
+    g.fillText(n>runBest&&n>0?'🎉 NEW RECORD！ '+n+'段':'ベスト '+best+'段 ／ ボタンでリトライ',W/2,py+96);
     if(rankNote){g.fillStyle='#ffd24a';g.font='700 15px system-ui,sans-serif';g.fillText(rankNote,W/2,py+142)}
   }
 }
