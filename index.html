@@ -190,7 +190,7 @@ const PAL=[ // 上/中/下/光/星の明るさ/雲の濃さ
 let bgN=0;
 const mixc=(a,b,t)=>a.map((v,i)=>Math.round(v+(b[i]-v)*t));
 const css=(c,a)=>a==null?'rgb('+c+')':'rgba('+c+','+a+')';
-function limitFor(k){return .35+2.65*Math.exp(-k/70)}
+function limitFor(k){return .35+2.65*Math.exp(-k/150)}
 function reset(){dirs=[1];n=0;face=1;state='ready';timer=0;limit=0;reason='';rankNote='';bgN=0;camX=0;camY=0;shake=0;
   vx=0;vy=0;hop=0;fx=0;fy=0;fv=0;parts=[];
   while(dirs.length<60)dirs.push(Math.random()<.5?1:-1)}
