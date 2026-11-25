@@ -106,8 +106,8 @@ function tone(f,d,type,vol,f2){
   gn.gain.exponentialRampToValueAtTime(.001,t+d);
   o.connect(gn).connect(ac.destination);o.start(t);o.stop(t+d+.02);
 }
-const sfxSpace=()=>tone(780,.09,'triangle',.2);          // 高めの「ポッ」
-const sfxCtrl=()=>tone(300,.12,'square',.09,520);        // 低め→上がる「ブッ」
+const sfxSpace=()=>tone(300,.12,'square',.09,520);        // Space: 低め→上がる「ブッ」
+const sfxCtrl=()=>tone(780,.09,'triangle',.2);           // Ctrl: 高めの「ポッ」
 
 // ---------- BGM(階数で切り替え) ----------
 const BGM=['1-99.mp3','100-299.mp3','300-inf.mp3'];
