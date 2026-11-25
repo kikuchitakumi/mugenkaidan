@@ -21,13 +21,13 @@
   .btn.on{transform:scale(.95);filter:brightness(1.35);box-shadow:0 2px 12px var(--glow),inset 0 1px 0 #fff8}
   #ctrl{left:max(16px,env(safe-area-inset-left));--glow:#8b4fe666;background:linear-gradient(160deg,#a56cf5,#5b2ab0)}
   #space{right:max(16px,env(safe-area-inset-right));--glow:#2aa0f066;background:linear-gradient(160deg,#4fc0ff,#1766c2)}
-  #mute{position:fixed;top:max(10px,env(safe-area-inset-top));right:max(10px,env(safe-area-inset-right));width:44px;height:44px;
+  #gear{position:fixed;top:max(10px,env(safe-area-inset-top));right:max(10px,env(safe-area-inset-right));width:44px;height:44px;
     border-radius:50%;border:1.5px solid #ffffff44;background:#ffffff18;color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;touch-action:none}
   #rank{position:fixed;top:max(10px,env(safe-area-inset-top));left:max(10px,env(safe-area-inset-left));width:44px;height:44px;
     border-radius:50%;border:1.5px solid #ffffff44;background:#ffffff18;color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;touch-action:none}
-  #panel{position:fixed;inset:0;z-index:20;background:#05060ccc;display:none;align-items:center;justify-content:center;touch-action:auto}
-  #panel .card{width:min(88vw,340px);background:linear-gradient(#1c1f45,#10122a);border:1.5px solid #ffffff33;border-radius:20px;padding:18px;color:#fff;box-shadow:0 10px 40px #0008}
-  #panel h2{margin:0 0 10px;font-size:20px;text-align:center}
+  #panel,#setpanel{position:fixed;inset:0;z-index:20;background:#05060ccc;display:none;align-items:center;justify-content:center;touch-action:auto}
+  #panel .card,#setpanel .card{width:min(88vw,340px);background:linear-gradient(#1c1f45,#10122a);border:1.5px solid #ffffff33;border-radius:20px;padding:18px;color:#fff;box-shadow:0 10px 40px #0008}
+  #panel h2,#setpanel h2{margin:0 0 10px;font-size:20px;text-align:center}
   #list{list-style:none;margin:0 0 12px;padding:0;min-height:60px;font-size:15px}
   #list li{display:flex;justify-content:space-between;gap:8px;padding:6px 8px;border-radius:8px}
   #list li span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -35,15 +35,28 @@
   #list li.me{background:#ffd24a33;color:#ffe38a}
   #panel .row{display:flex;gap:8px}
   #name{flex:1;min-width:0;font-size:16px;padding:10px;border-radius:10px;border:1px solid #ffffff44;background:#0006;color:#fff;-webkit-user-select:text;user-select:text}
-  #panel button{font-size:15px;font-weight:700;padding:10px 14px;border-radius:10px;border:0;color:#fff;background:linear-gradient(160deg,#4fc0ff,#1766c2)}
-  #panel #close{display:block;width:100%;margin-top:12px;background:#ffffff22}
+  #panel button,#setpanel button{font-size:15px;font-weight:700;padding:10px 14px;border-radius:10px;border:0;color:#fff;background:linear-gradient(160deg,#4fc0ff,#1766c2)}
+  #panel #close,#setpanel #s-close{display:block;width:100%;margin-top:12px;background:#ffffff22}
   #stat{margin:10px 0 0;font-size:12px;color:#a9b2f0;text-align:center;min-height:16px}
+  .set{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 4px;font-size:15px}
+  .set input[type=range]{flex:1;max-width:150px;accent-color:#4fc0ff}
+  .set input[type=checkbox]{width:22px;height:22px;accent-color:#4fc0ff}
+  #setpanel .note{margin:8px 0 0;font-size:12px;color:#a9b2f0;line-height:1.5}
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
-<div id="mute">🔊</div>
+<div id="gear">⚙</div>
 <div id="rank">🏆</div>
+<div id="setpanel"><div class="card">
+  <h2>⚙ 設定</h2>
+  <label class="set"><span>BGM</span><input type="checkbox" id="s-bgm"></label>
+  <label class="set"><span>BGM音量</span><input type="range" id="s-bgmv" min="0" max="100"></label>
+  <label class="set"><span>効果音</span><input type="checkbox" id="s-se"></label>
+  <label class="set"><span>効果音音量</span><input type="range" id="s-sev" min="0" max="100"></label>
+  <p class="note">階数でBGMが切り替わります<br>1〜99段 / 100〜299段 / 300段〜</p>
+  <button id="s-close">閉じる</button>
+</div></div>
 <div id="panel"><div class="card">
   <h2>🏆 ランキング</h2>
   <ul id="list"></ul>
@@ -65,32 +78,88 @@ addEventListener('resize',resize);resize();
 ['gesturestart','gesturechange','gestureend','contextmenu','dblclick'].forEach(e=>
   document.addEventListener(e,ev=>ev.preventDefault(),{passive:false}));
 let lastTouch=0;
-document.addEventListener('touchend',e=>{if(e.target.closest&&e.target.closest('#panel'))return;const n=Date.now();if(n-lastTouch<350)e.preventDefault();lastTouch=n},{passive:false});
-document.addEventListener('touchmove',e=>{if(e.target.closest&&e.target.closest('#panel'))return;e.preventDefault()},{passive:false});
+document.addEventListener('touchend',e=>{if(e.target.closest&&e.target.closest('#panel,#setpanel'))return;const n=Date.now();if(n-lastTouch<350)e.preventDefault();lastTouch=n},{passive:false});
+document.addEventListener('touchmove',e=>{if(e.target.closest&&e.target.closest('#panel,#setpanel'))return;e.preventDefault()},{passive:false});
+
+// ---------- 設定 ----------
+const S={bgmOn:true,bgmVol:.5,seOn:true,seVol:1};
+try{Object.assign(S,JSON.parse(localStorage.getItem('mugen_set')||'{}'))}catch(e){}
+const saveS=()=>{try{localStorage.setItem('mugen_set',JSON.stringify(S))}catch(e){}};
 
 // ---------- 効果音(WebAudioで合成。Ctrl用とSpace用の2種類だけ) ----------
-let ac=null,muted=false;
-try{muted=localStorage.getItem('mugen_mute')==='1'}catch(e){}
-const muteEl=document.getElementById('mute');
-muteEl.textContent=muted?'🔇':'🔊';
+let ac=null;
 function audioInit(){
   if(!ac){const A=window.AudioContext||window.webkitAudioContext;if(A)ac=new A()}
   if(ac&&ac.state==='suspended')ac.resume();
+  bgmSetup();
 }
 function tone(f,d,type,vol,f2){
-  if(muted||!ac)return;
+  if(!S.seOn||!ac)return;
   const t=ac.currentTime,o=ac.createOscillator(),gn=ac.createGain();
   o.type=type;o.frequency.setValueAtTime(f,t);
   if(f2)o.frequency.exponentialRampToValueAtTime(f2,t+d);
-  gn.gain.setValueAtTime(0,t);gn.gain.linearRampToValueAtTime(vol,t+.008);
+  gn.gain.setValueAtTime(0,t);gn.gain.linearRampToValueAtTime(vol*S.seVol,t+.008);
   gn.gain.exponentialRampToValueAtTime(.001,t+d);
   o.connect(gn).connect(ac.destination);o.start(t);o.stop(t+d+.02);
 }
 const sfxSpace=()=>tone(780,.09,'triangle',.2);          // 高めの「ポッ」
 const sfxCtrl=()=>tone(300,.12,'square',.09,520);        // 低め→上がる「ブッ」
-muteEl.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();muted=!muted;
-  muteEl.textContent=muted?'🔇':'🔊';try{localStorage.setItem('mugen_mute',muted?'1':'0')}catch(_){}
-  audioInit();sfxSpace()});
+
+// ---------- BGM(階数で切り替え) ----------
+const BGM=['1-99.mp3','100-299.mp3','300-inf.mp3'];
+const bgmEls=[],bgmGains=[],bgmPre=[];
+let bgmCur=-1;
+const tierOf=k=>k<=99?0:k<=299?1:2;
+function bgmSetup(){
+  if(bgmEls.length||!ac)return;
+  BGM.forEach(src=>{
+    const a=new Audio();a.src=src;a.loop=true;a.preload='none';
+    const gn=ac.createGain();gn.gain.value=0;
+    ac.createMediaElementSource(a).connect(gn).connect(ac.destination);
+    bgmEls.push(a);bgmGains.push(gn);
+  });
+}
+// i番目を鳴らす(-1で停止)。dur秒かけてクロスフェード
+function bgmTo(i,dur=1){
+  if(!ac||!bgmEls.length)return;
+  bgmCur=i;
+  const now=ac.currentTime;
+  bgmEls.forEach((a,j)=>{
+    const gn=bgmGains[j],on=j===i&&S.bgmOn;
+    gn.gain.cancelScheduledValues(now);gn.gain.setValueAtTime(gn.gain.value,now);
+    gn.gain.linearRampToValueAtTime(on?S.bgmVol:0,now+dur);
+    if(on){if(a.paused)a.play().catch(()=>{})}
+    else if(!a.paused){
+      setTimeout(()=>{if(!(bgmCur===j&&S.bgmOn)){a.pause();if(bgmCur<0)a.currentTime=0}},dur*1000+100);
+    }
+  });
+}
+function bgmSync(){
+  const t=tierOf(n);
+  if(bgmCur!==t)bgmTo(t);
+  // 次の曲を少し前から先読み
+  [[85,1],[285,2]].forEach(([at,i])=>{
+    if(n>=at&&!bgmPre[i]&&bgmEls[i]){bgmPre[i]=1;bgmEls[i].preload='auto';bgmEls[i].load()}
+  });
+}
+document.addEventListener('visibilitychange',()=>{if(ac)document.hidden?ac.suspend():ac.resume()});
+
+// ---------- 設定画面 ----------
+const gearEl=document.getElementById('gear'),setpanel=document.getElementById('setpanel'),
+  eBgm=document.getElementById('s-bgm'),eBgmV=document.getElementById('s-bgmv'),
+  eSe=document.getElementById('s-se'),eSeV=document.getElementById('s-sev');
+gearEl.addEventListener('pointerdown',e=>{
+  e.preventDefault();e.stopPropagation();audioInit();
+  eBgm.checked=S.bgmOn;eBgmV.value=Math.round(S.bgmVol*100);
+  eSe.checked=S.seOn;eSeV.value=Math.round(S.seVol*100);
+  panelOpen=true;setpanel.style.display='flex';
+});
+document.getElementById('s-close').addEventListener('click',()=>{panelOpen=false;setpanel.style.display='none'});
+eBgm.addEventListener('change',()=>{S.bgmOn=eBgm.checked;saveS();audioInit();if(bgmCur>=0)bgmTo(bgmCur,.3)});
+eBgmV.addEventListener('input',()=>{S.bgmVol=eBgmV.value/100;saveS();if(bgmCur>=0)bgmTo(bgmCur,.1)});
+eSe.addEventListener('change',()=>{S.seOn=eSe.checked;saveS();audioInit();sfxSpace()});
+eSeV.addEventListener('input',()=>{S.seVol=eSeV.value/100;saveS()});
+eSeV.addEventListener('change',()=>{audioInit();sfxSpace()});
 
 // ---------- ゲーム状態 ----------
 const SW=73,SH=30,SR=9; // 階段の幅(1.3倍)・高さ・角丸
@@ -106,7 +175,7 @@ function stairX(k){let x=0;for(let i=0;i<k;i++)x+=dirs[i];return x}
 function burst(x,y,col,cnt,sp){
   for(let i=0;i<cnt;i++){const a=Math.random()*6.283,s=Math.random()*sp;
     parts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-sp*.4,life:1,col})}}
-function fail(r){state='over';reason=r;lockUntil=performance.now()+450;shake=1;fv=-120;
+function fail(r){state='over';reason=r;lockUntil=performance.now()+450;shake=1;fv=-120;bgmTo(-1,.8);
   burst(vx,vy,'#ff6b6b',26,200);
   if(n>best){best=n;try{localStorage.setItem('mugen_best',best)}catch(e){}}
   onGameOver()}
@@ -212,7 +281,7 @@ function act(turn){
   if(state==='over'){if(now>lockUntil)reset();return}
   if(turn)face=-face;
   if(dirs[n]!==face){fail('階段のない方向です');return}
-  n++;state='play';hop=1;
+  n++;state='play';hop=1;bgmSync();
   burst(stairX(n)*SW,-n*SH,turn?'#b98cff':'#7fd0ff',n%10===0?22:9,n%10===0?170:90);
   while(dirs.length<n+60)dirs.push(Math.random()<.5?1:-1);
   limit=limitFor(n);timer=limit;
