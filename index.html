@@ -41,6 +41,8 @@
   .set{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 4px;font-size:15px}
   .set input[type=range]{flex:1;max-width:150px;accent-color:#4fc0ff}
   .set input[type=checkbox]{width:22px;height:22px;accent-color:#4fc0ff}
+  .tests{display:flex;gap:6px;margin-top:6px}
+  #setpanel .tests button{flex:1;padding:9px 4px;font-size:13px}
   #setpanel .note{margin:8px 0 0;font-size:12px;color:#a9b2f0;line-height:1.5}
 </style>
 </head>
@@ -54,6 +56,8 @@
   <label class="set"><span>BGM音量</span><input type="range" id="s-bgmv" min="0" max="100"></label>
   <label class="set"><span>効果音</span><input type="checkbox" id="s-se"></label>
   <label class="set"><span>効果音音量</span><input type="range" id="s-sev" min="0" max="100"></label>
+  <div class="set" style="padding-bottom:0"><span>BGM試聴</span></div>
+  <div class="tests"><button data-t="0">1〜99</button><button data-t="1">100〜299</button><button data-t="2">300〜</button><button data-t="-1">停止</button></div>
   <p class="note">階数でBGMが切り替わります<br>1〜99段 / 100〜299段 / 300段〜</p>
   <button id="s-close">閉じる</button>
 </div></div>
@@ -154,7 +158,15 @@ gearEl.addEventListener('pointerdown',e=>{
   eSe.checked=S.seOn;eSeV.value=Math.round(S.seVol*100);
   panelOpen=true;setpanel.style.display='flex';
 });
-document.getElementById('s-close').addEventListener('click',()=>{panelOpen=false;setpanel.style.display='none'});
+document.getElementById('s-close').addEventListener('click',()=>{
+  panelOpen=false;setpanel.style.display='none';
+  bgmTo(state==='play'?tierOf(n):-1,.4); // 試聴を止め、プレイ中なら本来の曲に戻す
+});
+document.querySelectorAll('#setpanel .tests button').forEach(b=>b.addEventListener('click',()=>{
+  audioInit();const i=+b.dataset.t;
+  if(i>=0&&!S.bgmOn){S.bgmOn=true;eBgm.checked=true;saveS()}
+  bgmTo(i,.4);
+}));
 eBgm.addEventListener('change',()=>{S.bgmOn=eBgm.checked;saveS();audioInit();if(bgmCur>=0)bgmTo(bgmCur,.3)});
 eBgmV.addEventListener('input',()=>{S.bgmVol=eBgmV.value/100;saveS();if(bgmCur>=0)bgmTo(bgmCur,.1)});
 eSe.addEventListener('change',()=>{S.seOn=eSe.checked;saveS();audioInit();sfxSpace()});
@@ -166,9 +178,19 @@ const SW=73,SH=30,SR=9; // 階段の幅(1.3倍)・高さ・角丸
 let dirs,n,face,state,timer,limit,best,reason,lockUntil,camX,camY,shake;
 let vx,vy,hop,fx,fy,fv,parts;
 try{best=+localStorage.getItem('mugen_best')||0}catch(e){best=0}
-const stars=Array.from({length:50},()=>({x:Math.random(),y:Math.random(),r:Math.random()*1.4+.4,z:Math.random()*.25+.05}));
+const stars=Array.from({length:70},()=>({x:Math.random(),y:Math.random(),r:Math.random()*1.4+.4,z:Math.random()*.25+.05}));
+const hex=h=>[1,3,5].map(i=>parseInt(h.substr(i,2),16));
+const PAL=[ // 上/中/下/光/星の明るさ/雲の濃さ
+  {c:['#4aa8ee','#86cffa','#d8f2ff'],gl:'#ffffff',star:0,cloud:1},   // 0〜99  空
+  {c:['#2f2f86','#e0587a','#ffb764'],gl:'#ffd28a',star:.15,cloud:0}, // 100〜 夕焼け
+  {c:['#070c26','#14214c','#2c3f7c'],gl:'#5a7bd4',star:.8,cloud:0},  // 200〜 夜
+  {c:['#04020c','#12082c','#2c1552'],gl:'#7a4bd4',star:1,cloud:0}    // 300〜 宇宙
+].map(p=>({...p,rgb:p.c.map(hex),g:hex(p.gl)}));
+let bgN=0;
+const mixc=(a,b,t)=>a.map((v,i)=>Math.round(v+(b[i]-v)*t));
+const css=(c,a)=>a==null?'rgb('+c+')':'rgba('+c+','+a+')';
 function limitFor(k){return .35+2.65*Math.exp(-k/70)}
-function reset(){dirs=[1];n=0;face=1;state='ready';timer=0;limit=0;reason='';rankNote='';camX=0;camY=0;shake=0;
+function reset(){dirs=[1];n=0;face=1;state='ready';timer=0;limit=0;reason='';rankNote='';bgN=0;camX=0;camY=0;shake=0;
   vx=0;vy=0;hop=0;fx=0;fy=0;fv=0;parts=[];
   while(dirs.length<60)dirs.push(Math.random()<.5?1:-1)}
 function stairX(k){let x=0;for(let i=0;i<k;i++)x+=dirs[i];return x}
@@ -322,63 +344,77 @@ function tri(x1,y1,x2,y2,x3,y3){g.beginPath();g.moveTo(x1,y1);g.lineTo(x2,y2);g.
 function drawCat(f,over){
   const t=performance.now()/1000;
   g.lineCap='round';g.lineJoin='round';
-  // しっぽ(ぱたぱた)
-  g.strokeStyle='#ff9a3c';g.lineWidth=5;
-  const wag=Math.sin(t*6)*3;
-  g.beginPath();g.moveTo(-f*9,-6);g.quadraticCurveTo(-f*22,-6+wag,-f*19,-22+wag);g.stroke();
-  g.strokeStyle='#fff3e0';g.lineWidth=2.4;
-  g.beginPath();g.moveTo(-f*19,-18+wag);g.lineTo(-f*19,-22+wag);g.stroke();
+  // しっぽ(固定)
+  g.shadowColor='#2a305066';g.shadowBlur=4;
+  g.beginPath();g.moveTo(-f*9,-6);g.quadraticCurveTo(-f*22,-6,-f*19,-22);
+  g.strokeStyle='#cdd4e8';g.lineWidth=7;g.stroke();
+  g.strokeStyle='#ffffff';g.lineWidth=5;g.stroke();
   // 体
-  let gr=g.createLinearGradient(0,-18,0,0);gr.addColorStop(0,'#ffbd6e');gr.addColorStop(1,'#ff9138');
-  g.fillStyle=gr;g.beginPath();g.ellipse(0,-8,12,9,0,0,7);g.fill();
-  g.fillStyle='#fff3e0';g.beginPath();g.ellipse(0,-5,6,5,0,0,7);g.fill();      // おなか
+  let gr=g.createLinearGradient(0,-18,0,0);gr.addColorStop(0,'#ffffff');gr.addColorStop(1,'#e3e8f4');
+  g.fillStyle=gr;g.beginPath();g.ellipse(0,-8,12,9,0,0,7);g.fill();g.strokeStyle='#cdd4e8';g.lineWidth=1;g.stroke();
+  g.fillStyle='#f4f6fc';g.beginPath();g.ellipse(0,-5,6,5,0,0,7);g.fill();      // おなか
   g.beginPath();g.ellipse(-6,-1,4.5,3,0,0,7);g.fill();g.beginPath();g.ellipse(6,-1,4.5,3,0,0,7);g.fill(); // あし
   // 耳
-  g.fillStyle='#ff9a3c';tri(-13,-22,-11,-36,-3,-29);tri(13,-22,11,-36,3,-29);
+  g.fillStyle='#f6f8fd';tri(-13,-22,-11,-36,-3,-29);tri(13,-22,11,-36,3,-29);
   g.fillStyle='#ffb3c1';tri(-11,-24,-10.3,-32,-5,-28);tri(11,-24,10.3,-32,5,-28);
   // 頭
-  gr=g.createLinearGradient(0,-31,0,-9);gr.addColorStop(0,'#ffc680');gr.addColorStop(1,'#ff9a3c');
-  g.fillStyle=gr;g.beginPath();g.ellipse(0,-20,14,11.5,0,0,7);g.fill();
-  // おでこの模様
-  g.strokeStyle='#e0731c';g.lineWidth=1.8;
-  g.beginPath();g.moveTo(0,-31);g.lineTo(0,-27);g.moveTo(-4,-30.5);g.lineTo(-3.4,-27.5);g.moveTo(4,-30.5);g.lineTo(3.4,-27.5);g.stroke();
+  gr=g.createLinearGradient(0,-31,0,-9);gr.addColorStop(0,'#ffffff');gr.addColorStop(1,'#eef1f9');
+  g.fillStyle=gr;g.beginPath();g.ellipse(0,-20,14,11.5,0,0,7);g.fill();g.strokeStyle='#cdd4e8';g.lineWidth=1;g.stroke();
+  g.shadowBlur=0;
   // ほっぺ
   g.fillStyle='#ff7f8a66';g.beginPath();g.arc(-9+f*2,-15.5,3,0,7);g.fill();g.beginPath();g.arc(9+f*2,-15.5,3,0,7);g.fill();
   // 目(進行方向を見る)
   const ex=f*2.5;
   if(over){
-    g.strokeStyle='#3a2415';g.lineWidth=1.8;
+    g.strokeStyle='#2a3050';g.lineWidth=1.8;
     [-5.5,5.5].forEach(x=>{g.beginPath();g.moveTo(x+ex-2,-23);g.lineTo(x+ex+2,-19);g.moveTo(x+ex+2,-23);g.lineTo(x+ex-2,-19);g.stroke()});
   }else{
-    g.fillStyle='#3a2415';
+    g.fillStyle='#2a3050';
     [-5.5,5.5].forEach(x=>{g.beginPath();g.ellipse(x+ex,-21,2.6,3.2,0,0,7);g.fill()});
     g.fillStyle='#fff';
     [-5.5,5.5].forEach(x=>{g.beginPath();g.arc(x+ex+.9,-22.2,1,0,7);g.fill()});
   }
   // 鼻と口
   g.fillStyle='#ff6f8a';tri(ex-1.8,-17,ex+1.8,-17,ex,-15);
-  g.strokeStyle='#3a2415';g.lineWidth=1.1;
+  g.strokeStyle='#2a3050';g.lineWidth=1.1;
   g.beginPath();g.arc(ex-1.6,-14.4,1.7,0,Math.PI);g.arc(ex+1.6,-14.4,1.7,0,Math.PI);g.stroke();
   // ひげ
-  g.strokeStyle='#ffffffcc';g.lineWidth=1;
+  g.strokeStyle='#8f99bddd';g.lineWidth=1;
   [[-1,-1.5],[-1,1.5]].forEach(([d,dy])=>{g.beginPath();g.moveTo(-10+ex,-16+dy*.4);g.lineTo(-18+ex,-16+dy*2.2);g.stroke();
     g.beginPath();g.moveTo(10+ex,-16+dy*.4);g.lineTo(18+ex,-16+dy*2.2);g.stroke()});
 }
 
 function draw(){
-  // 背景
+  // 背景: 100段ごとに 空→夕焼け→夜→宇宙。各100段の終盤20段でなめらかに次へ
+  bgN+=(n-bgN)*.08;
+  const pi=Math.min(3,Math.floor(bgN/100)),pj=Math.min(3,pi+1);
+  const bt=pi>=3?0:Math.min(1,Math.max(0,((bgN%100)-80)/20));
+  const A=PAL[pi],B=PAL[pj];
+  const c0=mixc(A.rgb[0],B.rgb[0],bt),c1=mixc(A.rgb[1],B.rgb[1],bt),c2=mixc(A.rgb[2],B.rgb[2],bt);
+  const gcol=mixc(A.g,B.g,bt),starA=A.star+(B.star-A.star)*bt,cloudA=A.cloud+(B.cloud-A.cloud)*bt;
   const bg=g.createLinearGradient(0,0,0,H);
-  bg.addColorStop(0,'#1d1a44');bg.addColorStop(.55,'#121634');bg.addColorStop(1,'#080a16');
+  bg.addColorStop(0,css(c0));bg.addColorStop(.55,css(c1));bg.addColorStop(1,css(c2));
   g.fillStyle=bg;g.fillRect(0,0,W,H);
   const gl=g.createRadialGradient(W/2,H*.45,0,W/2,H*.45,H*.6);
-  gl.addColorStop(0,'#5a4bd433');gl.addColorStop(1,'#5a4bd400');
+  gl.addColorStop(0,css(gcol,.28));gl.addColorStop(1,css(gcol,0));
   g.fillStyle=gl;g.fillRect(0,0,W,H);
   camX+=(vx-camX)*.18;camY+=(vy-camY)*.18;
   const tw=performance.now()/1000;
-  for(const s of stars){
-    const sy=((s.y*H-camY*s.z)%H+H)%H,sx=((s.x*W-camX*s.z*.5)%W+W)%W;
-    g.globalAlpha=.35+.35*Math.sin(tw*2+s.x*20);
-    g.fillStyle='#fff';g.beginPath();g.arc(sx,sy,s.r,0,7);g.fill();
+  if(starA>.01){
+    for(const s of stars){
+      const sy=((s.y*H-camY*s.z)%H+H)%H,sx=((s.x*W-camX*s.z*.5)%W+W)%W;
+      g.globalAlpha=starA*(.35+.35*Math.sin(tw*2+s.x*20));
+      g.fillStyle='#fff';g.beginPath();g.arc(sx,sy,s.r,0,7);g.fill();
+    }
+  }
+  if(cloudA>.01){
+    g.fillStyle='#fff';
+    for(let i=0;i<6;i++){
+      const cx=(((i*.37+.1)*W*1.6-camX*.15*(.6+i*.12))%(W+240)+W+240)%(W+240)-120;
+      const cy=(((i*.21+.08)*H-camY*.1*(1+i*.2))%H+H)%H,r=26+i*5;
+      g.globalAlpha=.5*cloudA;
+      g.beginPath();g.ellipse(cx,cy,r*1.8,r*.7,0,0,7);g.ellipse(cx-r*.8,cy+r*.15,r*1.1,r*.55,0,0,7);g.ellipse(cx+r*.9,cy+r*.1,r*1.2,r*.6,0,0,7);g.fill();
+    }
   }
   g.globalAlpha=1;
 
@@ -433,10 +469,10 @@ function draw(){
   g.shadowColor='#7f8cff';g.shadowBlur=18;
   g.fillStyle='#fff';g.font='800 52px system-ui,sans-serif';
   g.fillText(n,W/2,62);g.shadowBlur=0;
-  g.fillStyle='#b8c0ff';g.font='600 12px system-ui,sans-serif';
+  g.fillStyle='#ffffffcc';g.font='600 12px system-ui,sans-serif';
   g.fillText('BEST '+best,W/2,84);
   const bw=Math.min(W-48,340),bx=(W-bw)/2,by=98;
-  g.fillStyle='#ffffff1c';rr(bx,by,bw,10,5);g.fill();
+  g.fillStyle='#00000033';rr(bx,by,bw,10,5);g.fill();
   if(state==='play'){
     const r=Math.max(0,timer/limit);
     const col=r>.5?['#7bf0a8','#2ec27a']:r>.25?['#ffe27a','#f0b020']:['#ff8a8a','#e03a3a'];
@@ -444,12 +480,12 @@ function draw(){
     g.fillStyle=bgx;g.shadowColor=col[1];g.shadowBlur=10;
     if(r>0){rr(bx,by,Math.max(10,bw*r),10,5);g.fill()}
     g.shadowBlur=0;
-    g.fillStyle='#9aa4e8';g.font='11px system-ui,sans-serif';g.fillText('制限 '+limit.toFixed(2)+'s',W/2,by+28);
+    g.fillStyle='#ffffffdd';g.font='11px system-ui,sans-serif';g.fillText('制限 '+limit.toFixed(2)+'s',W/2,by+28);
   }
   if(state==='ready'){
     g.fillStyle='#ffffffee';g.font='800 20px system-ui,sans-serif';
     g.fillText('ボタンを押してスタート',W/2,H*.24);
-    g.font='13px system-ui,sans-serif';g.fillStyle='#a9b2f0';
+    g.font='13px system-ui,sans-serif';g.fillStyle='#ffffffcc';
     g.fillText('PC: Ctrl=方向転換+1段 / Space=1段',W/2,H*.24+26);
   }
   if(over){
