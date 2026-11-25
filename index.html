@@ -113,7 +113,14 @@ function fail(r){state='over';reason=r;lockUntil=performance.now()+450;shake=1;f
 
 // ---------- ランキング(Firebase Firestore) ----------
 // Firebaseの設定を貼ると有効になります(nullの間はランキング機能は非表示)
-const FIREBASE_CONFIG=null;
+const FIREBASE_CONFIG={
+  apiKey:"AIzaSyCb6ZRfEVP7b7_812vBzGlHPXO3UI2hoS4",
+  authDomain:"mugenkaidan.firebaseapp.com",
+  projectId:"mugenkaidan",
+  storageBucket:"mugenkaidan.firebasestorage.app",
+  messagingSenderId:"295795145152",
+  appId:"1:295795145152:web:a6605b69d155e18cf43025"
+};
 const panel=document.getElementById('panel'),rankBtn=document.getElementById('rank'),
   listEl=document.getElementById('list'),nameEl=document.getElementById('name'),
   statEl=document.getElementById('stat');
