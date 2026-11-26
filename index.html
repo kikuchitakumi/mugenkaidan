@@ -25,6 +25,13 @@
     border-radius:50%;border:1.5px solid #ffffff44;background:#ffffff18;color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;touch-action:none}
   #rank{position:fixed;top:max(10px,env(safe-area-inset-top));left:max(10px,env(safe-area-inset-left));width:44px;height:44px;
     border-radius:50%;border:1.5px solid #ffffff44;background:#ffffff18;color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center;touch-action:none}
+  #mode{position:fixed;top:max(10px,env(safe-area-inset-top));left:calc(max(10px,env(safe-area-inset-left)) + 52px);height:44px;padding:0 14px;
+    border-radius:22px;border:1.5px solid #ffffff44;background:#ffffff18;color:#fff;font-size:14px;font-weight:800;display:flex;align-items:center;justify-content:center;touch-action:none;white-space:nowrap}
+  #mode.ta{background:linear-gradient(160deg,#ffcf5a,#f08a1c);border-color:#ffffff88;color:#4a2a00}
+  #mode.dis{opacity:.35}
+  #panel .tabs{display:flex;gap:6px;margin:0 0 10px}
+  #panel .tabs button{flex:1;padding:8px 4px;font-size:13px;background:#ffffff18}
+  #panel .tabs button.sel{background:linear-gradient(160deg,#4fc0ff,#1766c2)}
   #panel,#setpanel{position:fixed;inset:0;z-index:20;background:#05060ccc;display:none;align-items:center;justify-content:center;touch-action:auto}
   #panel .card,#setpanel .card{width:min(88vw,340px);background:linear-gradient(#1c1f45,#10122a);border:1.5px solid #ffffff33;border-radius:20px;padding:18px;color:#fff;box-shadow:0 10px 40px #0008}
   #panel h2,#setpanel h2{margin:0 0 10px;font-size:20px;text-align:center}
@@ -58,6 +65,7 @@
 <canvas id="c"></canvas>
 <div id="gear">⚙</div>
 <div id="rank">🏆</div>
+<div id="mode"></div>
 <div id="setpanel"><div class="card">
   <h2>⚙ 設定</h2>
   <label class="set"><span>BGM</span><input type="checkbox" id="s-bgm"></label>
@@ -78,6 +86,7 @@
 </div></div>
 <div id="panel"><div class="card">
   <h2>🏆 ランキング</h2>
+  <div class="tabs"><button data-m="inf">∞ 無限</button><button data-m="ta">⏱ 100段タイム</button></div>
   <ul id="list"></ul>
   <div class="row"><input id="name" maxlength="12" placeholder="ニックネーム" autocomplete="off"><button id="save">保存</button></div>
   <p id="stat"></p>
@@ -101,7 +110,7 @@ document.addEventListener('touchend',e=>{if(e.target.closest&&e.target.closest('
 document.addEventListener('touchmove',e=>{if(e.target.closest&&e.target.closest('#panel,#setpanel'))return;e.preventDefault()},{passive:false});
 
 // ---------- 設定 ----------
-const S={bgmOn:true,bgmVol:.5,seOn:true,seVol:1,skin:'auto',char:'catw'};
+const S={bgmOn:true,bgmVol:.5,seOn:true,seVol:1,skin:'auto',char:'catw',mode:'inf'}; // mode: inf=無限 / ta=100段タイムアタック
 try{Object.assign(S,JSON.parse(localStorage.getItem('mugen_set')||'{}'))}catch(e){}
 const saveS=()=>{try{localStorage.setItem('mugen_set',JSON.stringify(S))}catch(e){}};
 
@@ -195,7 +204,12 @@ const STW=66,STH=7;       // 階段(光の棒)の長さと太さ
 let dirs,n,face,state,timer,limit,best,reason,lockUntil,camX,camY,shake;
 let recT=0,recShown=false,runBest=0; // NEW RECORD演出の残り時間/今回表示済みか/開始時の自己ベスト
 let vx,vy,hop,fx,fy,fv,parts;
+const TA_GOAL=100;                 // タイムアタックのゴール段数
+let taStart=0,taTime=0,taBest=0,taRec=false; // 開始時刻/記録(ms)/自己ベスト(ms)/今回ベスト更新
+const isTA=()=>S.mode==='ta';
+const fmtT=ms=>(ms/1000).toFixed(2)+'s';
 try{best=+localStorage.getItem('mugen_best')||0}catch(e){best=0}
+try{taBest=+localStorage.getItem('mugen_ta_best')||0}catch(e){taBest=0}
 const stars=Array.from({length:70},()=>({x:Math.random(),y:Math.random(),r:Math.random()*1.4+.4,z:Math.random()*.25+.05}));
 const hex=h=>[1,3,5].map(i=>parseInt(h.substr(i,2),16));
 const PAL=[ // 上/中/下/光/星の明るさ/雲の濃さ
@@ -233,7 +247,7 @@ let bgN=0;
 const mixc=(a,b,t)=>a.map((v,i)=>Math.round(v+(b[i]-v)*t));
 const css=(c,a)=>a==null?'rgb('+c+')':'rgba('+c+','+a+')';
 function limitFor(k){return .35+2.65*Math.exp(-k/250)}
-function reset(){recT=0;recShown=false;runBest=best;dirs=[1];n=0;face=1;state='ready';timer=0;limit=0;reason='';rankNote='';bgN=0;camX=0;camY=0;shake=0;
+function reset(){recT=0;recShown=false;runBest=isTA()?0:best;taStart=0;taTime=0;taRec=false;modeUI();dirs=[1];n=0;face=1;state='ready';timer=0;limit=0;reason='';rankNote='';bgN=0;camX=0;camY=0;shake=0;
   vx=0;vy=0;hop=0;fx=0;fy=0;fv=0;parts=[];
   while(dirs.length<60)dirs.push(Math.random()<.5?1:-1)}
 function stairX(k){let x=0;for(let i=0;i<k;i++)x+=dirs[i];return x}
@@ -242,8 +256,30 @@ function burst(x,y,col,cnt,sp){
     parts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-sp*.4,life:1,col})}}
 function fail(r){state='over';reason=r;lockUntil=performance.now()+450;shake=1;fv=-120;bgmTo(-1,.8);
   burst(vx,vy,'#ff6b6b',26,200);
+  modeUI();
+  if(isTA())return; // タイムアタック中の失敗は記録なし
   if(n>best){best=n;try{localStorage.setItem('mugen_best',best)}catch(e){}}
   onGameOver()}
+// タイムアタック: 100段到達でクリア
+function clear(now){
+  state='clear';taTime=Math.round(now-taStart);lockUntil=now+900;bgmTo(-1,.8);
+  burst(vx,vy,'#ffd24a',60,300);burst(vx,vy,'#ffffff',30,220);
+  tone(660,.12,'triangle',.18);setTimeout(()=>tone(880,.12,'triangle',.18),110);setTimeout(()=>tone(1320,.3,'triangle',.2),220);
+  if(!taBest||taTime<taBest){taRec=taBest>0;taBest=taTime;try{localStorage.setItem('mugen_ta_best',taBest)}catch(e){}}
+  modeUI();
+  onClear(taTime);
+}
+// モード切替ボタン(プレイ中は切り替え不可)
+const modeEl=document.getElementById('mode');
+function modeUI(){
+  modeEl.textContent=isTA()?'⏱ 100段タイム':'∞ 無限';
+  modeEl.className=(isTA()?'ta':'')+(state==='play'?' dis':'');
+}
+modeEl.addEventListener('pointerdown',e=>{
+  e.preventDefault();e.stopPropagation();audioInit();
+  if(state==='play')return;
+  S.mode=isTA()?'inf':'ta';saveS();reset();sfxCtrl();
+});
 
 // ---------- ランキング(Firebase Firestore) ----------
 // Firebaseの設定を貼ると有効になります(nullの間はランキング機能は非表示)
@@ -258,7 +294,12 @@ const FIREBASE_CONFIG={
 const panel=document.getElementById('panel'),rankBtn=document.getElementById('rank'),
   listEl=document.getElementById('list'),nameEl=document.getElementById('name'),
   statEl=document.getElementById('stat');
-let panelOpen=false,fb=null,myName='',asked=false,pending=0,rankNote='',rankAt=0;
+let panelOpen=false,fb=null,myName='',asked=false,pending=null,rankNote='',rankAt=0,rankMode='inf';
+// モードごとのランキング: 無限=段数(多いほど上) / タイムアタック=タイムms(少ないほど上)
+const RK={
+  inf:{col:'scores',key:'score',dir:'desc',fmt:v=>v+'段',better:(a,b)=>a>b},
+  ta:{col:'times',key:'time',dir:'asc',fmt:fmtT,better:(a,b)=>a<b}
+};
 try{myName=localStorage.getItem('mugen_name')||''}catch(e){}
 nameEl.value=myName;
 if(!FIREBASE_CONFIG)rankBtn.style.display='none';
@@ -275,65 +316,74 @@ async function fbInit(){
   return fb;
 }
 async function loadRank(){
+  const m=rankMode,R=RK[m];
+  document.querySelectorAll('#panel .tabs button').forEach(b=>b.classList.toggle('sel',b.dataset.m===m));
   listEl.textContent='読み込み中…';
   if(!await fbInit()){listEl.textContent='';return}
   try{
     const {F,db}=fb;
-    const snap=await F.getDocs(F.query(F.collection(db,'scores'),F.orderBy('score','desc'),F.limit(10)));
+    const snap=await F.getDocs(F.query(F.collection(db,R.col),F.orderBy(R.key,R.dir),F.limit(10)));
+    if(m!==rankMode)return; // 読み込み中にタブが切り替わった
     listEl.textContent='';let i=0;
     snap.forEach(d=>{i++;const v=d.data(),li=document.createElement('li');
       if(v.u===fb.uid)li.className='me';
       const a=document.createElement('span'),b=document.createElement('b');
-      a.textContent=i+'. '+v.name;b.textContent=v.score+'段';li.append(a,b);listEl.append(li)});
+      a.textContent=i+'. '+v.name;b.textContent=R.fmt(v[R.key]);li.append(a,b);listEl.append(li)});
     if(!i)listEl.textContent='まだ記録がありません';
-  }catch(e){console.warn(e);listEl.textContent='';statEl.textContent='ランキングを取得できません'}
+  }catch(e){console.warn(e);if(m===rankMode){listEl.textContent='';statEl.textContent='ランキングを取得できません'}}
 }
-// ランキングは10枠(ドキュメントID 0〜9)だけ。圏内なら一番低い枠を上書きする。
+// ランキングは10枠(ドキュメントID 0〜9)だけ。圏内なら一番悪い枠を上書きする。
 // 同じ人が複数枠に入ってもよい。11位以下は保存されない。
-async function submitScore(sc){
+async function submitScore(m,sc){
+  const R=RK[m];
   if(!FIREBASE_CONFIG||!myName||sc<1)return;
   if(!await fbInit())return;
   const {F,db,uid}=fb;
   for(let t=0;t<3;t++){
     try{
-      const snap=await F.getDocs(F.collection(db,'scores'));
-      const rows=[];snap.forEach(d=>rows.push({id:d.id,score:d.data().score}));
+      const snap=await F.getDocs(F.collection(db,R.col));
+      const rows=[];snap.forEach(d=>rows.push({id:d.id,v:d.data()[R.key]}));
       let slot;
       if(rows.length<10){
         const used=new Set(rows.map(r=>r.id));
         for(let i=0;i<10;i++)if(!used.has(String(i))){slot=String(i);break}
       }else{
-        rows.sort((a,b)=>a.score-b.score);
-        if(sc<=rows[0].score){statEl.textContent='ランキング圏外です(10位は'+rows[0].score+'段)';return}
+        rows.sort((a,b)=>R.better(a.v,b.v)?1:R.better(b.v,a.v)?-1:0); // 一番悪い記録が先頭
+        if(!R.better(sc,rows[0].v)){statEl.textContent='ランキング圏外です(10位は'+R.fmt(rows[0].v)+')';return}
         slot=rows[0].id;
       }
-      await F.setDoc(F.doc(db,'scores',slot),{name:myName,score:sc,u:uid,t:F.serverTimestamp()});
+      await F.setDoc(F.doc(db,R.col,slot),{name:myName,[R.key]:sc,u:uid,t:F.serverTimestamp()});
       rankNote='🏆 ランキング入り！';rankAt=performance.now();statEl.textContent='ランキングに登録しました！';return;
     }catch(e){console.warn(e)}
   }
   statEl.textContent='登録に失敗しました';
 }
 function openPanel(ask){
-  panelOpen=true;panel.style.display='flex';
+  panelOpen=true;panel.style.display='flex';rankMode=S.mode;
   statEl.textContent=ask?'名前を入れるとランキングに参加できます':'';
   loadRank();
 }
-function onGameOver(){
-  if(!FIREBASE_CONFIG||n<1)return;
+function record(m,sc){
+  if(!FIREBASE_CONFIG||sc<1)return;
   if(!myName){
-    pending=n;
-    if(!asked){asked=true;setTimeout(()=>{if(state==='over')openPanel(true)},900)}
+    pending={m,sc};
+    if(!asked){asked=true;setTimeout(()=>{if(state==='over'||state==='clear')openPanel(true)},900)}
     return;
   }
-  submitScore(n);
+  submitScore(m,sc);
 }
+const onGameOver=()=>record('inf',n);
+const onClear=ms=>record('ta',ms);
+document.querySelectorAll('#panel .tabs button').forEach(b=>b.addEventListener('click',()=>{
+  rankMode=b.dataset.m;statEl.textContent='';loadRank();
+}));
 rankBtn.addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();audioInit();openPanel(false)});
 document.getElementById('close').addEventListener('click',()=>{panelOpen=false;panel.style.display='none'});
 document.getElementById('save').addEventListener('click',async()=>{
   const v=nameEl.value.trim().slice(0,12);
   if(!v){statEl.textContent='名前を入力してください';return}
   myName=v;try{localStorage.setItem('mugen_name',v)}catch(e){}
-  if(pending>0){const sc=pending;pending=0;statEl.textContent='登録中…';await submitScore(sc)}
+  if(pending){const p=pending;pending=null;statEl.textContent='登録中…';rankMode=p.m;await submitScore(p.m,p.sc)}
   else statEl.textContent='名前を保存しました';
   await loadRank();
 });
@@ -343,10 +393,12 @@ function act(turn){
   audioInit();
   turn?sfxCtrl():sfxSpace();
   const now=performance.now();
-  if(state==='over'){if(now>lockUntil)reset();return}
+  if(state==='over'||state==='clear'){if(now>lockUntil)reset();return}
   if(turn)face=-face;
   if(dirs[n]!==face){fail('階段のない方向です');return}
-  n++;state='play';hop=1;bgmSync();
+  if(state==='ready'){taStart=now;state='play';modeUI()} // 最初の1段目でタイム計測開始
+  n++;hop=1;bgmSync();
+  if(isTA()&&n>=TA_GOAL){clear(now);return}
   if(!recShown&&runBest>0&&n>runBest){ // 自己ベストを超えた瞬間
     recShown=true;recT=2.6;burst(stairX(n)*SW,-n*SH,'#ffd24a',36,230);
   }
@@ -373,7 +425,8 @@ addEventListener('keydown',e=>{
 let prev=performance.now();
 function loop(t){
   const dt=Math.min((t-prev)/1000,.1);prev=t;
-  if(state==='play'){timer-=dt;if(timer<=0){timer=0;fail('時間切れ')}}
+  if(state==='play'){timer-=dt;if(timer<=0){timer=0;fail('時間切れ')}
+    if(isTA()&&state==='play')taTime=performance.now()-taStart} // rAFのtは入力時刻より古いことがあるのでnow()で測る
   shake=Math.max(0,shake-dt*3);
   hop=Math.max(0,hop-dt*6);recT=Math.max(0,recT-dt);
   const tx=stairX(n)*SW,ty=-n*SH;
@@ -660,6 +713,16 @@ function draw(){
   g.shadowColor='#7f8cff';g.shadowBlur=18;
   g.fillStyle='#fff';g.font='800 52px system-ui,sans-serif';
   g.fillText(n,W/2,62);g.shadowBlur=0;
+  if(isTA()){
+    // タイムアタック: 経過タイムと自己ベストタイム(ベストより遅れたら赤)
+    const nw=g.measureText(String(n)).width; // 大きな段数の幅(52pxフォントのまま測る)
+    g.font='700 16px system-ui,sans-serif';g.fillStyle='#ffffffaa';g.textAlign='left';
+    g.fillText('/ '+TA_GOAL,W/2+nw/2+6,62);g.textAlign='center';
+    const late=taBest>0&&taTime>taBest&&state==='play',bpw=190;
+    g.fillStyle=late?'#e03a3a99':'#00000040';rr(W/2-bpw/2,68,bpw,20,10);g.fill();
+    g.fillStyle='#ffffffee';g.font='700 12px system-ui,sans-serif';
+    g.fillText('⏱ '+fmtT(taTime)+'  ／  BEST '+(taBest?fmtT(taBest):'--'),W/2,82.5);
+  }else{
   // 自己ベスト(プレイ中に超えたら、その場で更新表示+金色)
   const live=Math.max(best,n),rec=n>runBest&&n>0&&runBest>0;
   const btxt='🏆 BEST '+live,bpw=104;
@@ -668,6 +731,7 @@ function draw(){
   rr(W/2-bpw/2,68,bpw,20,10);g.fill();
   g.fillStyle=rec?'#5a3a00':'#ffffffee';g.font='700 12px system-ui,sans-serif';
   g.fillText(btxt,W/2,82.5);
+  }
   const bw=Math.min(W-48,340),bx=(W-bw)/2,by=98;
   g.fillStyle='#00000033';rr(bx,by,bw,10,5);g.fill();
   if(state==='play'){
@@ -691,9 +755,20 @@ function draw(){
   }
   if(state==='ready'){
     g.fillStyle='#ffffffee';g.font='800 20px system-ui,sans-serif';
+    if(isTA()){g.fillStyle='#ffd24a';g.fillText('⏱ 100段タイムアタック',W/2,H*.24-30);g.fillStyle='#ffffffee'}
     g.fillText('ボタンを押してスタート',W/2,H*.24);
     g.font='13px system-ui,sans-serif';g.fillStyle='#ffffffcc';
     g.fillText('PC: Ctrl=方向転換+1段 / Space=1段',W/2,H*.24+26);
+  }
+  if(state==='clear'){
+    const py=H*.2;
+    const pg2=g.createLinearGradient(0,py,0,py+120);pg2.addColorStop(0,'#0c0f24ee');pg2.addColorStop(1,'#2a2410ee');
+    g.fillStyle=pg2;g.strokeStyle='#ffd24acc';g.lineWidth=1.5;
+    rr(W/2-130,py,260,116,18);g.fill();g.stroke();
+    g.fillStyle='#ffd24a';g.font='800 22px system-ui,sans-serif';g.fillText('🎉 '+TA_GOAL+'段 クリア！',W/2,py+34);
+    g.fillStyle='#fff';g.font='800 34px system-ui,sans-serif';g.fillText(fmtT(taTime),W/2,py+74);
+    g.fillStyle='#a9b2f0';g.font='12px system-ui,sans-serif';
+    g.fillText(taRec?'🏆 NEW RECORD！':'ベスト '+fmtT(taBest)+' ／ ボタンでリトライ',W/2,py+100);
   }
   if(over){
     const py=H*.2;
@@ -703,8 +778,11 @@ function draw(){
     g.fillStyle='#ff7b7b';g.font='800 28px system-ui,sans-serif';g.fillText('失敗！',W/2,py+42);
     g.fillStyle='#fff';g.font='600 16px system-ui,sans-serif';g.fillText(reason+' ／ '+n+'段',W/2,py+70);
     g.fillStyle='#a9b2f0';g.font='12px system-ui,sans-serif';
-    g.fillText(n>runBest&&n>0?'🎉 NEW RECORD！ '+n+'段':'ベスト '+best+'段 ／ ボタンでリトライ',W/2,py+96);
-    if(rankNote){ // ランキング入り: 大きな金色バナー(ポンと弾んで表示)
+    g.fillText(isTA()?'あと'+(TA_GOAL-n)+'段 ／ ボタンでリトライ':n>runBest&&n>0?'🎉 NEW RECORD！ '+n+'段':'ベスト '+best+'段 ／ ボタンでリトライ',W/2,py+96);
+  }
+  if(rankNote&&(over||state==='clear')){
+    const py=H*.2;
+    { // ランキング入り: 大きな金色バナー(ポンと弾んで表示)
       const age=(performance.now()-rankAt)/1000,pop=age<.35?.5+.5*Math.sin(age/.35*Math.PI/2)+.12*Math.sin(age/.35*Math.PI):1;
       g.save();g.translate(W/2,py+150);g.scale(pop,pop);
       const rg=g.createLinearGradient(-130,0,130,0);rg.addColorStop(0,'#ffe27a');rg.addColorStop(1,'#ffb52e');
