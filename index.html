@@ -28,10 +28,29 @@
   #mode{position:fixed;top:max(10px,env(safe-area-inset-top));left:calc(max(10px,env(safe-area-inset-left)) + 52px);height:44px;padding:0 14px;
     border-radius:22px;border:1.5px solid #ffffff44;background:#ffffff18;color:#fff;font-size:14px;font-weight:800;display:flex;align-items:center;justify-content:center;touch-action:none;white-space:nowrap}
   #mode.ta{background:linear-gradient(160deg,#ffcf5a,#f08a1c);border-color:#ffffff88;color:#4a2a00}
+  #mode.hard{background:linear-gradient(160deg,#ff6b6b,#b0182e);border-color:#ffffff88}
   #mode.dis{opacity:.35}
   #panel .tabs{display:flex;gap:6px;margin:0 0 10px}
   #panel .tabs button{flex:1;padding:8px 4px;font-size:13px;background:#ffffff18}
   #panel .tabs button.sel{background:linear-gradient(160deg,#4fc0ff,#1766c2)}
+  #gear,#rank{z-index:15}
+  #title{position:fixed;inset:0;z-index:12;display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;
+    padding:70px 16px max(20px,env(safe-area-inset-bottom));box-sizing:border-box;overflow:auto;
+    background:radial-gradient(ellipse at 50% 30%,#2a2f7acc,#05060cee 75%);color:#fff;touch-action:auto}
+  #title h1{margin:0 0 6px;font-size:44px;font-weight:900;letter-spacing:.08em;text-align:center;
+    background:linear-gradient(#fff,#a9b6ff);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 4px 14px #7f8cff88)}
+  #title h1 small{display:block;font-size:13px;letter-spacing:.3em;color:#c9d0ff;-webkit-text-fill-color:#c9d0ff;margin-top:4px}
+  #title .md{width:min(88vw,340px);border-radius:20px;border:1.5px solid #ffffff55;padding:14px 18px;color:#fff;text-align:left;
+    display:flex;align-items:center;gap:14px;box-shadow:0 8px 24px #0006,inset 0 1px 0 #ffffff55;transition:transform .06s,filter .06s}
+  #title .md:active{transform:scale(.96);filter:brightness(1.2)}
+  #title .md .ic{font-size:34px;width:42px;text-align:center}
+  #title .md b{display:block;font-size:20px}
+  #title .md span{display:block;font-size:12px;opacity:.9;margin-top:2px}
+  #title .md i{display:block;font-style:normal;font-size:12px;margin-top:4px;color:#ffe38a}
+  #title .md[data-m=inf]{background:linear-gradient(160deg,#4fc0ff,#1766c2)}
+  #title .md[data-m=ta]{background:linear-gradient(160deg,#ffbf3a,#d9700c)}
+  #title .md[data-m=hard]{background:linear-gradient(160deg,#ff6b6b,#9c1028)}
+  #title .hint{font-size:12px;color:#a9b2f0;margin:4px 0 0;text-align:center}
   #panel,#setpanel{position:fixed;inset:0;z-index:20;background:#05060ccc;display:none;align-items:center;justify-content:center;touch-action:auto}
   #panel .card,#setpanel .card{width:min(88vw,340px);background:linear-gradient(#1c1f45,#10122a);border:1.5px solid #ffffff33;border-radius:20px;padding:18px;color:#fff;box-shadow:0 10px 40px #0008}
   #panel h2,#setpanel h2{margin:0 0 10px;font-size:20px;text-align:center}
@@ -66,6 +85,13 @@
 <div id="gear">⚙</div>
 <div id="rank">🏆</div>
 <div id="mode"></div>
+<div id="title">
+  <h1>無限階段<small>MODE SELECT</small></h1>
+  <button class="md" data-m="inf"><div class="ic">∞</div><div><b>無限モード</b><span>どこまで登れるか挑戦</span><i></i></div></button>
+  <button class="md" data-m="ta"><div class="ic">⏱</div><div><b>100段タイムアタック</b><span>100段までのタイムを競う</span><i></i></div></button>
+  <button class="md" data-m="hard"><div class="ic">🔥</div><div><b>ハードモード</b><span>最初から700段の速さ</span><i></i></div></button>
+  <p class="hint">PC: 1 / 2 / 3 キーでも選べます</p>
+</div>
 <div id="setpanel"><div class="card">
   <h2>⚙ 設定</h2>
   <label class="set"><span>BGM</span><input type="checkbox" id="s-bgm"></label>
@@ -86,7 +112,7 @@
 </div></div>
 <div id="panel"><div class="card">
   <h2>🏆 ランキング</h2>
-  <div class="tabs"><button data-m="inf">∞ 無限</button><button data-m="ta">⏱ 100段タイム</button></div>
+  <div class="tabs"><button data-m="inf">∞ 無限</button><button data-m="ta">⏱ 100段</button><button data-m="hard">🔥 ハード</button></div>
   <ul id="list"></ul>
   <div class="row"><input id="name" maxlength="12" placeholder="ニックネーム" autocomplete="off"><button id="save">保存</button></div>
   <p id="stat"></p>
@@ -106,8 +132,8 @@ addEventListener('resize',resize);resize();
 ['gesturestart','gesturechange','gestureend','contextmenu','dblclick'].forEach(e=>
   document.addEventListener(e,ev=>ev.preventDefault(),{passive:false}));
 let lastTouch=0;
-document.addEventListener('touchend',e=>{if(e.target.closest&&e.target.closest('#panel,#setpanel'))return;const n=Date.now();if(n-lastTouch<350)e.preventDefault();lastTouch=n},{passive:false});
-document.addEventListener('touchmove',e=>{if(e.target.closest&&e.target.closest('#panel,#setpanel'))return;e.preventDefault()},{passive:false});
+document.addEventListener('touchend',e=>{if(e.target.closest&&e.target.closest('#panel,#setpanel,#title'))return;const n=Date.now();if(n-lastTouch<350)e.preventDefault();lastTouch=n},{passive:false});
+document.addEventListener('touchmove',e=>{if(e.target.closest&&e.target.closest('#panel,#setpanel,#title'))return;e.preventDefault()},{passive:false});
 
 // ---------- 設定 ----------
 const S={bgmOn:true,bgmVol:.5,seOn:true,seVol:1,skin:'auto',char:'catw',mode:'inf'}; // mode: inf=無限 / ta=100段タイムアタック
@@ -207,9 +233,14 @@ let vx,vy,hop,fx,fy,fv,parts;
 const TA_GOAL=100;                 // タイムアタックのゴール段数
 let taStart=0,taTime=0,taBest=0,taRec=false; // 開始時刻/記録(ms)/自己ベスト(ms)/今回ベスト更新
 const isTA=()=>S.mode==='ta';
+const isHard=()=>S.mode==='hard';  // ハード: 最初から700段目相当の速さでスタミナが減る
+const HARD_OFS=700;
+let hardBest=0;
+const modeBest=()=>isHard()?hardBest:best;
 const fmtT=ms=>(ms/1000).toFixed(2)+'s';
 try{best=+localStorage.getItem('mugen_best')||0}catch(e){best=0}
 try{taBest=+localStorage.getItem('mugen_ta_best')||0}catch(e){taBest=0}
+try{hardBest=+localStorage.getItem('mugen_hard_best')||0}catch(e){hardBest=0}
 const stars=Array.from({length:70},()=>({x:Math.random(),y:Math.random(),r:Math.random()*1.4+.4,z:Math.random()*.25+.05}));
 const hex=h=>[1,3,5].map(i=>parseInt(h.substr(i,2),16));
 const PAL=[ // 上/中/下/光/星の明るさ/雲の濃さ
@@ -247,7 +278,7 @@ let bgN=0;
 const mixc=(a,b,t)=>a.map((v,i)=>Math.round(v+(b[i]-v)*t));
 const css=(c,a)=>a==null?'rgb('+c+')':'rgba('+c+','+a+')';
 function limitFor(k){return .35+2.65*Math.exp(-k/250)}
-function reset(){recT=0;recShown=false;runBest=isTA()?0:best;taStart=0;taTime=0;taRec=false;modeUI();dirs=[1];n=0;face=1;state='ready';timer=0;limit=0;reason='';rankNote='';bgN=0;camX=0;camY=0;shake=0;
+function reset(){recT=0;recShown=false;runBest=isTA()?0:modeBest();taStart=0;taTime=0;taRec=false;modeUI();dirs=[1];n=0;face=1;state='ready';timer=0;limit=0;reason='';rankNote='';bgN=0;camX=0;camY=0;shake=0;
   vx=0;vy=0;hop=0;fx=0;fy=0;fv=0;parts=[];
   while(dirs.length<60)dirs.push(Math.random()<.5?1:-1)}
 function stairX(k){let x=0;for(let i=0;i<k;i++)x+=dirs[i];return x}
@@ -258,6 +289,10 @@ function fail(r){state='over';reason=r;lockUntil=performance.now()+450;shake=1;f
   burst(vx,vy,'#ff6b6b',26,200);
   modeUI();
   if(isTA())return; // タイムアタック中の失敗は記録なし
+  if(isHard()){
+    if(n>hardBest){hardBest=n;try{localStorage.setItem('mugen_hard_best',hardBest)}catch(e){}}
+    record('hard',n);return;
+  }
   if(n>best){best=n;try{localStorage.setItem('mugen_best',best)}catch(e){}}
   onGameOver()}
 // タイムアタック: 100段到達でクリア
@@ -271,15 +306,30 @@ function clear(now){
 }
 // モード切替ボタン(プレイ中は切り替え不可)
 const modeEl=document.getElementById('mode');
+const MODES={inf:'∞ 無限',ta:'⏱ 100段タイム',hard:'🔥 ハード'};
 function modeUI(){
-  modeEl.textContent=isTA()?'⏱ 100段タイム':'∞ 無限';
-  modeEl.className=(isTA()?'ta':'')+(state==='play'?' dis':'');
+  modeEl.textContent=(MODES[S.mode]||MODES.inf)+' ▾'; // 押すとタイトル(モード選択)に戻る
+  modeEl.className=(S.mode!=='inf'?S.mode:'')+(state==='play'?' dis':'');
 }
 modeEl.addEventListener('pointerdown',e=>{
   e.preventDefault();e.stopPropagation();audioInit();
   if(state==='play')return;
-  S.mode=isTA()?'inf':'ta';saveS();reset();sfxCtrl();
+  sfxCtrl();openTitle();
 });
+// ---------- タイトル(モード選択) ----------
+const titleEl=document.getElementById('title');
+let titleOpen=false;
+function openTitle(){
+  titleOpen=true;bgmTo(-1,.4);
+  const b={inf:best?'ベスト '+best+'段':'',ta:taBest?'ベスト '+fmtT(taBest):'',hard:hardBest?'ベスト '+hardBest+'段':''};
+  titleEl.querySelectorAll('.md').forEach(el=>el.querySelector('i').textContent=b[el.dataset.m]||'未プレイ');
+  titleEl.style.display='flex';modeEl.style.display='none';
+}
+function pickMode(m){
+  audioInit();sfxSpace();
+  S.mode=m;saveS();titleOpen=false;titleEl.style.display='none';modeEl.style.display='';reset();
+}
+titleEl.querySelectorAll('.md').forEach(el=>el.addEventListener('click',()=>pickMode(el.dataset.m)));
 
 // ---------- ランキング(Firebase Firestore) ----------
 // Firebaseの設定を貼ると有効になります(nullの間はランキング機能は非表示)
@@ -298,7 +348,8 @@ let panelOpen=false,fb=null,myName='',asked=false,pending=null,rankNote='',rankA
 // モードごとのランキング: 無限=段数(多いほど上) / タイムアタック=タイムms(少ないほど上)
 const RK={
   inf:{col:'scores',key:'score',dir:'desc',fmt:v=>v+'段',better:(a,b)=>a>b},
-  ta:{col:'times',key:'time',dir:'asc',fmt:fmtT,better:(a,b)=>a<b}
+  ta:{col:'times',key:'time',dir:'asc',fmt:fmtT,better:(a,b)=>a<b},
+  hard:{col:'hard',key:'score',dir:'desc',fmt:v=>v+'段',better:(a,b)=>a>b}
 };
 try{myName=localStorage.getItem('mugen_name')||''}catch(e){}
 nameEl.value=myName;
@@ -359,7 +410,7 @@ async function submitScore(m,sc){
   statEl.textContent='登録に失敗しました';
 }
 function openPanel(ask){
-  panelOpen=true;panel.style.display='flex';rankMode=S.mode;
+  panelOpen=true;panel.style.display='flex';rankMode=RK[S.mode]?S.mode:'inf';
   statEl.textContent=ask?'名前を入れるとランキングに参加できます':'';
   loadRank();
 }
@@ -389,7 +440,7 @@ document.getElementById('save').addEventListener('click',async()=>{
 });
 
 function act(turn){
-  if(panelOpen)return;
+  if(panelOpen||titleOpen)return;
   audioInit();
   turn?sfxCtrl():sfxSpace();
   const now=performance.now();
@@ -404,7 +455,7 @@ function act(turn){
   }
   burst(stairX(n)*SW,-n*SH,turn?'#b98cff':'#7fd0ff',n%100===0?30:9,n%100===0?200:90);
   while(dirs.length<n+60)dirs.push(Math.random()<.5?1:-1);
-  limit=limitFor(n);timer=limit;
+  limit=limitFor(n+(isHard()?HARD_OFS:0));timer=limit;
 }
 
 // 入力: ボタン
@@ -418,6 +469,7 @@ bind('ctrl',true);bind('space',false);
 // 入力: キーボード
 addEventListener('keydown',e=>{
   if(e.repeat||(e.target&&e.target.tagName==='INPUT'))return;
+  if(titleOpen&&!panelOpen){const m={'1':'inf','2':'ta','3':'hard'}[e.key];if(m)pickMode(m);return}
   if(e.key==='Control'||e.code==='ControlLeft'||e.code==='ControlRight'){e.preventDefault();act(true)}
   else if(e.code==='Space'){e.preventDefault();act(false)}
 });
@@ -724,8 +776,8 @@ function draw(){
     g.fillText('⏱ '+fmtT(taTime)+'  ／  BEST '+(taBest?fmtT(taBest):'--'),W/2,82.5);
   }else{
   // 自己ベスト(プレイ中に超えたら、その場で更新表示+金色)
-  const live=Math.max(best,n),rec=n>runBest&&n>0&&runBest>0;
-  const btxt='🏆 BEST '+live,bpw=104;
+  const live=Math.max(modeBest(),n),rec=n>runBest&&n>0&&runBest>0;
+  const btxt=(isHard()?'🔥 BEST ':'🏆 BEST ')+live,bpw=104;
   if(rec){const pgd=g.createLinearGradient(W/2-bpw/2,0,W/2+bpw/2,0);pgd.addColorStop(0,'#ffe27a');pgd.addColorStop(1,'#ffb52e');g.fillStyle=pgd}
   else g.fillStyle='#00000040';
   rr(W/2-bpw/2,68,bpw,20,10);g.fill();
@@ -756,6 +808,7 @@ function draw(){
   if(state==='ready'){
     g.fillStyle='#ffffffee';g.font='800 20px system-ui,sans-serif';
     if(isTA()){g.fillStyle='#ffd24a';g.fillText('⏱ 100段タイムアタック',W/2,H*.24-30);g.fillStyle='#ffffffee'}
+    if(isHard()){g.fillStyle='#ff7b7b';g.fillText('🔥 ハードモード(最初から700段の速さ)',W/2,H*.24-30);g.fillStyle='#ffffffee'}
     g.fillText('ボタンを押してスタート',W/2,H*.24);
     g.font='13px system-ui,sans-serif';g.fillStyle='#ffffffcc';
     g.fillText('PC: Ctrl=方向転換+1段 / Space=1段',W/2,H*.24+26);
@@ -778,7 +831,7 @@ function draw(){
     g.fillStyle='#ff7b7b';g.font='800 28px system-ui,sans-serif';g.fillText('失敗！',W/2,py+42);
     g.fillStyle='#fff';g.font='600 16px system-ui,sans-serif';g.fillText(reason+' ／ '+n+'段',W/2,py+70);
     g.fillStyle='#a9b2f0';g.font='12px system-ui,sans-serif';
-    g.fillText(isTA()?'あと'+(TA_GOAL-n)+'段 ／ ボタンでリトライ':n>runBest&&n>0?'🎉 NEW RECORD！ '+n+'段':'ベスト '+best+'段 ／ ボタンでリトライ',W/2,py+96);
+    g.fillText(isTA()?'あと'+(TA_GOAL-n)+'段 ／ ボタンでリトライ':n>runBest&&n>0?'🎉 NEW RECORD！ '+n+'段':'ベスト '+modeBest()+'段 ／ ボタンでリトライ',W/2,py+96);
   }
   if(rankNote&&(over||state==='clear')){
     const py=H*.2;
@@ -792,7 +845,7 @@ function draw(){
     }
   }
 }
-reset();requestAnimationFrame(loop);
+reset();openTitle();requestAnimationFrame(loop);
 })();
 </script>
 </body>
