@@ -108,6 +108,7 @@
   <div class="set" style="padding-bottom:0"><span>階段のスキン</span></div>
   <div id="skins"></div>
   <p class="note" id="skin-note"></p>
+  <label class="set"><span>500段で蒼光・1000段で黄金に変える</span><input type="checkbox" id="s-swap"></label>
   <div class="set" style="padding-bottom:0"><span>BGM試聴</span></div>
   <div class="tests"><button data-t="0">1〜399</button><button data-t="1">400〜999</button><button data-t="2">1000〜</button><button data-t="-1">停止</button></div>
   <p class="note">階数でBGMが切り替わります<br>1〜399段 / 400〜999段 / 1000段〜</p>
@@ -139,7 +140,7 @@ document.addEventListener('touchend',e=>{if(e.target.closest&&e.target.closest('
 document.addEventListener('touchmove',e=>{if(e.target.closest&&e.target.closest('#panel,#setpanel,#title'))return;e.preventDefault()},{passive:false});
 
 // ---------- 設定 ----------
-const S={bgmOn:true,bgmVol:.5,seOn:true,seVol:1,skin:'auto',char:'catw',mode:'inf'}; // mode: inf=無限 / ta=100段タイムアタック
+const S={bgmOn:true,bgmVol:.5,seOn:true,seVol:1,skin:'auto',char:'catw',mode:'inf',skinSwap:true}; // mode: inf=無限 / ta=100段タイムアタック
 try{Object.assign(S,JSON.parse(localStorage.getItem('mugen_set')||'{}'))}catch(e){}
 const saveS=()=>{try{localStorage.setItem('mugen_set',JSON.stringify(S))}catch(e){}};
 
@@ -205,11 +206,12 @@ document.addEventListener('visibilitychange',()=>{if(ac)document.hidden?ac.suspe
 // ---------- 設定画面 ----------
 const gearEl=document.getElementById('gear'),setpanel=document.getElementById('setpanel'),
   eBgm=document.getElementById('s-bgm'),eBgmV=document.getElementById('s-bgmv'),
-  eSe=document.getElementById('s-se'),eSeV=document.getElementById('s-sev');
+  eSe=document.getElementById('s-se'),eSeV=document.getElementById('s-sev'),
+  eSwap=document.getElementById('s-swap');
 gearEl.addEventListener('pointerdown',e=>{
   e.preventDefault();e.stopPropagation();audioInit();
   eBgm.checked=S.bgmOn;eBgmV.value=Math.round(S.bgmVol*100);
-  eSe.checked=S.seOn;eSeV.value=Math.round(S.seVol*100);buildSkins();buildChars();
+  eSe.checked=S.seOn;eSeV.value=Math.round(S.seVol*100);eSwap.checked=S.skinSwap;buildSkins();buildChars();
   panelOpen=true;setpanel.style.display='flex';
 });
 document.getElementById('s-close').addEventListener('click',()=>{
@@ -224,6 +226,7 @@ document.querySelectorAll('#setpanel .tests button').forEach(b=>b.addEventListen
 eBgm.addEventListener('change',()=>{S.bgmOn=eBgm.checked;saveS();audioInit();if(bgmCur>=0)bgmTo(bgmCur,.3)});
 eBgmV.addEventListener('input',()=>{S.bgmVol=eBgmV.value/100;saveS();if(bgmCur>=0)bgmTo(bgmCur,.1)});
 eSe.addEventListener('change',()=>{S.seOn=eSe.checked;saveS();audioInit();sfxSpace()});
+eSwap.addEventListener('change',()=>{S.skinSwap=eSwap.checked;saveS()});
 eSeV.addEventListener('input',()=>{S.seVol=eSeV.value/100;saveS()});
 eSeV.addEventListener('change',()=>{audioInit();sfxSpace()});
 
@@ -270,6 +273,11 @@ const SKINS=[
 ].map(k=>({...k,rgb:k.c&&k.c.map(hex),sw:k.sw||'linear-gradient(135deg,'+(k.c&&k.c[0])+','+(k.c&&k.c[1])+')'}));
 const skinOk=k=>!k.lock||best>=k.lock;
 const curSkin=()=>SKINS.find(k=>k.id===S.skin&&skinOk(k))||SKINS[0];
+// プレイ中の見た目: 選んだスキンのまま(「自動」だけは背景に合わせて色が変わる)。設定ONのときだけ500段で蒼光、1000段で黄金
+function stairSkin(){
+  const id=S.skinSwap?(n>=1000?'gold':n>=500?'blue':null):null;
+  return id?SKINS.find(k=>k.id===id):curSkin();
+}
 function buildSkins(){
   const box=document.getElementById('skins'),note=document.getElementById('skin-note');
   box.textContent='';
@@ -287,7 +295,6 @@ function buildSkins(){
 }
 let bgN=0;
 const UNLOCK_AT=[300,400,500,600,700,800,900,1000,1300]; // 無限モードの自己ベストで解放
-let unT=0,unText='';
 function nextUnlockNote(find){
   const k=UNLOCK_AT.find(v=>best<v);
   return k?' ／ 次は'+k+'段で「'+find(k).name+'」解放(無限モード)':' ／ 全解放！';
@@ -301,7 +308,7 @@ function limitFor(k){
   const t=Math.min(1,(k-1000)/1000);
   return base(1000)+(.25-base(1000))*t;
 }
-function reset(){recT=0;unT=0;recShown=false;runBest=isTA()?0:modeBest();taStart=0;taTime=0;taRec=false;modeUI();dirs=[1];n=0;face=1;state='ready';timer=0;limit=0;reason='';rankNote='';bgN=0;camX=0;camY=0;shake=0;
+function reset(){recT=0;recShown=false;runBest=isTA()?0:modeBest();taStart=0;taTime=0;taRec=false;modeUI();dirs=[1];n=0;face=1;state='ready';timer=0;limit=0;reason='';rankNote='';bgN=0;camX=0;camY=0;shake=0;
   vx=0;vy=0;hop=0;fx=0;fy=0;fv=0;parts=[];
   while(dirs.length<60)dirs.push(Math.random()<.5?1:-1)}
 function stairX(k){let x=0;for(let i=0;i<k;i++)x+=dirs[i];return x}
@@ -472,10 +479,6 @@ function act(turn){
   if(dirs[n]!==face){fail('階段のない方向です');return}
   if(state==='ready'){taStart=now;state='play';modeUI()} // 最初の1段目でタイム計測開始
   n++;hop=1;bgmSync();
-  if(S.mode==='inf'&&n>best&&UNLOCK_AT.includes(n)){ // 新しく解放
-    unT=3;unText='🔓 '+n+'段解放！ '+PIX.find(c=>c.lock===n).name+' ＆ '+SKINS.find(k=>k.lock===n).name;
-    burst(stairX(n)*SW,-n*SH,'#ffffff',30,260);
-  }
   if(isTA()&&n>=TA_GOAL){clear(now);return}
   if(!recShown&&runBest>0&&n>runBest){ // 自己ベストを超えた瞬間
     recShown=true;recT=2.6;burst(stairX(n)*SW,-n*SH,'#ffd24a',36,230);
@@ -507,13 +510,12 @@ function loop(t){
   if(state==='play'){timer-=dt;if(timer<=0){timer=0;fail('時間切れ')}
     if(isTA()&&state==='play')taTime=performance.now()-taStart} // rAFのtは入力時刻より古いことがあるのでnow()で測る
   shake=Math.max(0,shake-dt*3);
-  hop=Math.max(0,hop-dt*6);recT=Math.max(0,recT-dt);unT=Math.max(0,unT-dt);
+  hop=Math.max(0,hop-dt*6);recT=Math.max(0,recT-dt);
   const tx=stairX(n)*SW,ty=-n*SH;
   vx+=(tx-vx)*Math.min(1,dt*22);vy+=(ty-vy)*Math.min(1,dt*22);
   if(state==='over'){fv+=dt*900;fy+=fv*dt;fx+=face*dt*40}
   for(const p of parts){p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=dt*320;p.life-=dt*2.2}
-  const lx=Math.min(1,Math.max(0,(bgN-390)/20));
-  if(lx>.3&&Math.random()<lx*dt*30){ // 400段〜: 階段から光の粒が立ちのぼる
+  if(stairSkin().id==='blue'&&Math.random()<dt*30){ // 蒼光: 階段から光の粒が立ちのぼる
     const k=n-2+Math.floor(Math.random()*10);
     parts.push({x:stairX(k)*SW+(Math.random()-.5)*STW,y:-k*SH+Math.random()*STH,vx:(Math.random()-.5)*20,vy:-40-Math.random()*40,life:1,col:Math.random()<.5?'#bfe9ff':'#ffffff'});
   }
@@ -921,15 +923,10 @@ function draw(){
   const A=PAL[pi],B=PAL[pj];
   const c0=mixc(A.rgb[0],B.rgb[0],bt),c1=mixc(A.rgb[1],B.rgb[1],bt),c2=mixc(A.rgb[2],B.rgb[2],bt);
   const gcol=mixc(mixc(A.g,B.g,bt),[58,160,255],lux),starA=A.star+(B.star-A.star)*bt,cloudA=A.cloud+(B.cloud-A.cloud)*bt;
-  // 階段の色: スキン(自動なら背景連動) → 400段到達で蒼光に
-  const sk=curSkin(),auto=sk.id==='auto';
-  const slux=auto?lux:0; // 400段の蒼光化は「自動」のときだけ(選んだスキンは上書きしない)
-  const skfx=auto?(n>=1300?'haten':n>=1000?'flame':n>=900?'gold':null):sk.fx; // 自動は900段で黄金、1000段で蒼炎、1300段で覇天
-  const b1=sk.rgb?sk.rgb[0]:mixc(A.sc[0],B.sc[0],bt),b2=sk.rgb?sk.rgb[1]:mixc(A.sc[1],B.sc[1],bt);
-  const st1=css(mixc(b1,[226,246,255],slux)),st2=css(mixc(b2,[30,120,255],slux));
-  const glow=Math.max(slux,sk.id==='blue'?.7:0);
-  const lineC=(slux>.5||sk.id==='blue')?'#e6f8ffcc':(sk.line||'#0b0f3a88');
-  const curC1=css(mixc([255,242,168],[255,255,255],slux)),curC2=css(mixc([255,181,46],[110,205,255],slux));
+  // 階段の色: 背景に連動するのは「自動」だけ
+  const sk=stairSkin(),skfx=sk.fx;
+  const st1=css(sk.rgb?sk.rgb[0]:mixc(A.sc[0],B.sc[0],bt)),st2=css(sk.rgb?sk.rgb[1]:mixc(A.sc[1],B.sc[1],bt));
+  const glow=sk.id==='blue'?.7:0,lineC=sk.line||'#0b0f3a88';
   const bg=g.createLinearGradient(0,0,0,H);
   bg.addColorStop(0,css(c0));bg.addColorStop(.55,css(c1));bg.addColorStop(1,css(c2));
   g.fillStyle=bg;g.fillRect(0,0,W,H);
@@ -1019,12 +1016,12 @@ function draw(){
     g.globalAlpha=(past?.6:1)*(k>n+9?Math.max(0,1-(k-n-9)/6):1);
     if(skfx){paintStair(skfx,x,y,w,h,k,tw,k>=n-3&&k<=n+9,cur);g.globalAlpha=1;continue}
     let c1,c2;
-    if(cur){c1=curC1;c2=curC2}
+    if(cur){c1='#fff2a8';c2='#ffb52e'}
     else{c1=st1;c2=st2}
     const gr=g.createLinearGradient(0,y,0,y+h);gr.addColorStop(0,c1);gr.addColorStop(1,c2);
     g.fillStyle=gr;
     // 棒の光(近くの段だけ光らせて軽く)
-    if(cur){g.shadowColor=slux>.5?'#58b8ff':'#ffd24a';g.shadowBlur=20+12*slux}
+    if(cur){g.shadowColor='#ffd24a';g.shadowBlur=20}
     else if(k>=n-3&&k<=n+9){g.shadowColor=glow>.01?'#3aa0ff':c1;g.shadowBlur=glow>.01?14*glow:5}
     rr(x,y,w,h,SR);g.fill();
     g.shadowBlur=0;
@@ -1105,13 +1102,6 @@ function draw(){
     g.fillStyle='#fff6c8';g.font='14px sans-serif';
     [[-100,-6],[100,-6],[-94,12],[94,12]].forEach(([sx,sy],i)=>{g.globalAlpha=fade*(.5+.5*Math.sin(tw*9+i*1.7));g.fillText('✦',sx,sy)});
     g.restore();
-  }
-  if(unT>0){
-    g.save();g.globalAlpha=Math.min(1,unT/.5);g.font='800 13px system-ui,sans-serif';
-    const uw=Math.min(W-16,g.measureText(unText).width+30);
-    g.fillStyle='#0c1030dd';g.strokeStyle='#7ae8ff';g.lineWidth=1.5;g.shadowColor='#38c8ff';g.shadowBlur=14;
-    rr(W/2-uw/2,174,uw,30,15);g.fill();g.stroke();g.shadowBlur=0;
-    g.fillStyle='#ffffff';g.fillText(unText,W/2,194,uw-16);g.restore();
   }
   if(state==='ready'){
     g.fillStyle='#ffffffee';g.font='800 20px system-ui,sans-serif';
